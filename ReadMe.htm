@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bookFido</title>
+</head>
+<body>
+<main>
+<h1>bookFido</h1>
+<p>bookFido &mdash; the dog that fetches your books &mdash; catalogs an Audible library for screen reader users.  It is part of the Homer Tools series, a sibling of <a href="https://github.com/jamalmazrui/urlFido">urlFido</a>.  It signs into Audible through your own Microsoft Edge profile, walks every page of the library, downloads each companion PDF under a friendly name, converts each PDF to accessible HTML, gathers details about every title from Audible's catalog service, Open Library, and Wikipedia, including author biographies, and writes the catalog to your Downloads folder as Audible_Library.htm and Audible_Library.md (Pandoc-flavored Markdown), with a sortable sheet for every library in one bookFido.xlsx workbook.  Kindle books on the same Amazon account are cataloged alongside, as Kindle_Library.htm, Kindle_Library.md, and Kindle_Library.xlsx, with every field the Kindle library service offers; the Goodreads My Books shelves and the Bookshare My History list are cataloged as Goodreads_Library and Bookshare_Library documents with every field their pages offer; a title present in more than one library shares its gathered details, and a shared author's biography is fetched only once.</p>
+<h2>Highlights</h2>
+<ul>
+<li>A single portable 64-bit executable for Windows with the .NET Framework 4.8; all libraries are embedded, and nothing is installed.</li>
+<li>Spoken progress throughout: timed message boxes announce each file found or downloaded, with the percentage complete carried in the body of every announcement, and, during detail gathering, a periodic report of the estimated minutes remaining, all focused so your screen reader speaks them in its own voice.</li>
+<li>A state snapshot beside the exe lets later runs skip an unchanged library in seconds, resume an interrupted run, and fill in details a previous run could not reach, without revisiting library pages.</li>
+<li>The catalog document has a table of contents listing every title, an introduction with library statistics and tabulations by genre, rating, and listening progress, every title's details with the publisher's summary last, and appendixes indexing the library by author, narrator, series, progress, genre, publisher, and rating, ending with About the Authors, including biographies from Wikipedia and Open Library when reliable ones exist.</li>
+<li>The spreadsheet follows screen-reader-friendly conventions: one region at cell A1, a bold header row, a ColumnTitle01 workbook name so JAWS announces column headers, capped column widths, and a truly empty cell wherever a value is unknown.</li>
+<li>Titles order by title, ignoring a leading A, An, or The; authors order by surname.</li>
+<li>Polite web citizenship: one request per second per service, honoring rate-limit responses, with a circuit breaker that skips a service that has closed its door for the day.</li>
+<li>The log file is a debugging aid only: paths under your user profile are scrubbed to a placeholder before writing.</li>
+</ul>
+<h2>Building</h2>
+<p>Run buildbookFido.cmd in the same folder as bookFido.cs.  The script fetches pinned NuGet packages on first build, embeds them, prefers the Roslyn compiler with a .NET Framework fallback, embeds bookFido.ico when present, and writes buildbookFido.log.</p>
+<h2>Using</h2>
+<p>Run bookFido.exe, read the opening explanation, and choose OK.  Sign into Audible in the Edge window if asked.  The program does the rest, announcing as it goes, and opens the finished catalog in your browser.  Cancel any time; progress is saved every two minutes, and the next run continues where this one left off.</p>
+<h2>License</h2>
+<p>MIT.  The embedded libraries retain their own licenses, including PdfPig (Apache 2.0) and EPPlus 4 (LGPL).</p>
+</main>
+</body>
+</html>

@@ -90,6 +90,7 @@
 //     naming, which is then tried against companion-file as well.  The
 //     failure page body is also saved beside the log for diagnosis.
 
+using Homer;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -118,7 +119,7 @@ class bookFido
 {
     // Constant definitions
     const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 15000, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
-    const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = "34", sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
+    const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = "43", sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
     const uint iMbOk = 0x00000000, iMbSetForeground = 0x00010000, iMbTopmost = 0x00040000;
 
     // Static variable definitions
@@ -128,12 +129,21 @@ class bookFido
     static int iNextId = 1;
     static Dictionary<string, string> dFailedTitles = new Dictionary<string, string>(), dPdfNames = new Dictionary<string, string>();
     static HashSet<string> setCatalogAsins = new HashSet<string>();
+    const string sKindleLibraryUrl = "https://read.amazon.com/kindle-library", sKindleSearchUrl = "https://read.amazon.com/kindle-library/search?query=&libraryType=BOOKS&sortType=acquisition_desc&querySize=50";
+    static bool bKindleHarvested = false;
+    static object[] aSavedKindleRows = null;
     static List<Dictionary<string, object>> lCatalog = new List<Dictionary<string, object>>();
+    static List<Dictionary<string, object>> lKindleCatalog = new List<Dictionary<string, object>>();
+    static List<Dictionary<string, object>> lGoodreadsCatalog = new List<Dictionary<string, object>>();
+    static List<Dictionary<string, object>> lBookshareCatalog = new List<Dictionary<string, object>>();
+    static object[] aSavedGoodreadsRows = null;
+    static object[] aSavedBookshareRows = null;
     static Dictionary<string, string> dAuthorOlBio = new Dictionary<string, string>(), dAuthorWikiBio = new Dictionary<string, string>(), dAuthorWikiUrl = new Dictionary<string, string>();
     static HashSet<string> setAuthorsQueued = new HashSet<string>();
     static int iAudibleDone = 0, iAuthorsDone = 0, iHtmCount = 0, iOpenLibraryDone = 0, iWikipediaDone = 0, iWorkTotal = 0;
     static object oAuthorLock = new object();
     [ThreadStatic] static bool bLastFetchRateLimited;
+    static bool bSearchAudible = true, bSearchBookshare = true, bSearchGoodreads = true, bSearchKindle = true;
     static bool[] aLaneSkipping = new bool[3];
     static volatile string sProgressText = "";
     static volatile bool bStopLanes = false;
@@ -248,14 +258,13 @@ class bookFido
         jsonCodec.MaxJsonLength = 50000000;
         sIntro = "This is bookFido version " + sVersionText + ".  bookFido visits every page of your Audible library and gathers what it finds there.  " +
             "It downloads the companion PDF files that publishers attach to audiobooks, naming each by its book title, creates a screen-reader-friendly .htm version of every PDF, and it builds an accessible catalog of your whole library, " +
-            "with a heading for every title, its details enriched from Audible's catalog service, Open Library, and Wikipedia (this gathering step takes a few minutes for a large library), and appendixes indexed by author, narrator, series, publisher, rating, and more, saved as Audible_Library.htm, Audible_Library.md, and a sortable Audible_Library.xlsx spreadsheet in your Downloads folder.  " +
+            "with a heading for every title, its details enriched from Audible's catalog service, Open Library, and Wikipedia (this gathering step takes a few minutes for a large library), and appendixes indexed by author, narrator, series, publisher, rating, and more, saved as Audible_Library.htm and Audible_Library.md in your Downloads folder, with a sortable spreadsheet for every library as its own sheet of one bookFido.xlsx workbook.  Kindle books on the same Amazon account, the Goodreads My Books shelves, and the Bookshare My History list are cataloged alongside, as Kindle_Library, Goodreads_Library, and Bookshare_Library files, and a title present in more than one library shares its gathered details without extra requests.  " +
             "A note on announcements: this program works to keep each announcement window focused so your screen reader speaks it, but Windows can occasionally withhold focus from a background program; the complete play-by-play is always in bookFido.log.  " +
             "It opens Microsoft Edge at audible.com and uses your existing Audible login when possible.  " +
             "Progress is spoken through brief message boxes, and a full record is written to bookFido.log beside the program.  " +
             "When it finishes, it reports totals, opens the catalog in your web browser, and closes the Edge window it opened.  " +
-            "Choose OK to begin, or Cancel to exit.";
-        dialogResultAnswer = MessageBox.Show(sIntro, "Welcome to bookFido", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
-        if (dialogResultAnswer == DialogResult.Cancel) { log("The user chose Cancel at the introduction, so exiting"); return 0; }
+            "Check the libraries to search below; all are checked to begin with.  Then choose OK to begin, or Cancel to exit.";
+        if (!showOpeningDialog(sIntro)) { log("The user chose Cancel at the introduction, so exiting"); return 0; }
         sDownloadDir = downloadsFolder();
         log("Download directory: " + sDownloadDir);
         sDownloadDirShared = sDownloadDir;
@@ -302,8 +311,8 @@ class bookFido
         }
         await connectCdp();
         await enableDomains();
-        bSignedIn = false;
-        for (iTry = 1; iTry <= iLoginTryMax; iTry++)
+        bSignedIn = !bSearchAudible;
+        for (iTry = 1; bSearchAudible && iTry <= iLoginTryMax; iTry++)
         {
             await navigate(sLibraryUrl);
             Thread.Sleep(iSettleMs);
@@ -331,7 +340,7 @@ class bookFido
         iPercent = 0;
         iTotalPages = 0;
         sCookieHeader = "";
-        while (iPage <= iPageMax)
+        while (bSearchAudible && iPage <= iPageMax)
         {
             sCurrentUrl = await evaluate("location.href");
             if (setVisitedPages.Contains(sCurrentUrl)) { log("Loop guard: this page url was already visited, so stopping: " + sCurrentUrl); break; }
@@ -422,6 +431,17 @@ class bookFido
             iPage = iPage + 1;
         }
         if (iPage > iPageMax) log("Loop guard: the maximum page count of " + iPageMax + " was reached");
+        if (!bSearchAudible)
+        {
+            // Audible was not selected, so its saved world stands as it is:
+            // the catalog rows come from the state snapshot without any
+            // downloads or lookups, and the saved walk record is preserved
+            // so the state file keeps its resume information.
+            iTotalPagesSeen = iSavedTotalPages;
+            lPage1AsinsSeen = lSavedPage1Asins != null ? new List<string>(lSavedPage1Asins) : new List<string>();
+            materializeSavedRows(aSavedRows, lCatalog);
+            log("Audible was not selected this run, so its " + lCatalog.Count + " saved titles stand as they are");
+        }
         if (lFailed.Count > 0)
         {
             log("Retrying " + lFailed.Count + " failed downloads once, in case the failures were transient");
@@ -436,18 +456,48 @@ class bookFido
             }
             foreach (string sDeadUrl in lFailed) setDeadCompanions.Add(asinFromUrl(sDeadUrl));
         }
-        bWalkComplete = true;
-        sweepCompanions(sCookieHeader, sDownloadDir);
+        bWalkComplete = bSearchAudible ? true : bSavedWalkComplete;
+        if (bSearchAudible) sweepCompanions(sCookieHeader, sDownloadDir);
+        if (!bSearchKindle) materializeSavedRows(aSavedKindleRows, lKindleCatalog);
+        if (bSearchKindle) await harvestKindleAsync();
+        if (!bSearchGoodreads) materializeSavedRows(aSavedGoodreadsRows, lGoodreadsCatalog);
+        if (bSearchGoodreads) await harvestGoodreadsAsync();
+        if (!bSearchBookshare) materializeSavedRows(aSavedBookshareRows, lBookshareCatalog);
+        if (bSearchBookshare) await harvestBookshareAsync();
         waitForEnrichment();
         saveState();
-        sLibraryHtmPath = buildLibraryFiles(sDownloadDir);
-        try { writeLibraryXlsx(sDownloadDir); }
-        catch (Exception oException) { log("The spreadsheet catalog could not be written: " + oException.Message); }
+        sLibraryHtmPath = lCatalog.Count > 0 ? buildLibraryFiles(sDownloadDir) : "";
+        try { writeWorkbook(sDownloadDir); }
+        catch (Exception oException) { log("The spreadsheet workbook could not be written: " + oException.Message); }
+        resolveKindleTwins();
+        resolveGoodreadsTwins();
+        resolveBookshareTwins();
+        if (lKindleCatalog.Count > 0)
+        {
+            try { buildKindleFiles(sDownloadDir); }
+            catch (Exception oException) { log("The Kindle catalog documents could not be written: " + oException.Message); }
+        }
+        if (lGoodreadsCatalog.Count > 0)
+        {
+            try { buildGoodreadsFiles(sDownloadDir); }
+            catch (Exception oException) { log("The Goodreads catalog documents could not be written: " + oException.Message); }
+        }
+        if (lBookshareCatalog.Count > 0)
+        {
+            try { buildBookshareFiles(sDownloadDir); }
+            catch (Exception oException) { log("The Bookshare catalog documents could not be written: " + oException.Message); }
+        }
+        try { buildConsolidatedFiles(sDownloadDir); }
+        catch (Exception oException) { log("The consolidated catalog could not be written: " + oException.Message); }
         log("HTML versions of PDFs created this run: " + iHtmCount);
         sSummary = "Downloaded " + lDownloaded.Count + ", skipped " + lSkipped.Count + ", failed " + lFailed.Count + (setDeadCompanions.Count > lFailed.Count ? " (" + setDeadCompanions.Count + " companions are known to be permanently unavailable from Audible)" : "") + ", with " + iHtmCount + " HTML versions of PDFs created and " + lCatalog.Count + " titles cataloged.  " +
             (lFailed.Count > 0 ? "The failed companions are remembered as unavailable and will not be retried on future runs.  " : "") +
             (skippedLaneNames() != "" ? "Because of rate limiting, remaining lookups from " + skippedLaneNames() + " were deferred and will be gathered on a future run.  " : "") +
-            "The catalog was saved as Audible_Library.htm, Audible_Library.md, and Audible_Library.xlsx in Downloads, and will open in your web browser when you choose OK.  See bookFido.log for details.";
+            (lKindleCatalog.Count > 0 ? "Kindle library: " + lKindleCatalog.Count + " books cataloged as Kindle_Library.htm and Kindle_Library.md.  " : "") +
+            (lGoodreadsCatalog.Count > 0 ? "Goodreads library: " + lGoodreadsCatalog.Count + " books cataloged as Goodreads_Library.htm and Goodreads_Library.md.  " : "") +
+            (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
+            "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
+            "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the catalog will open in your web browser when you choose OK.  See bookFido.log for details.";
         log(sSummary);
         writeSummarySections();
         // Edge is closed before the results box appears, so the box faces no
@@ -778,6 +828,7 @@ class bookFido
         dParams = new Dictionary<string, object>();
         dParams["expression"] = sExpression;
         dParams["returnByValue"] = true;
+        dParams["awaitPromise"] = true;
         dResult = await cdpSend("Runtime.evaluate", dParams);
         if (!dResult.ContainsKey("result")) return "";
         dValue = (Dictionary<string, object>) dResult["result"];
@@ -1413,6 +1464,9 @@ class bookFido
             lSavedPage1Asins = new List<string>();
             if (dState.ContainsKey("page1Asins")) foreach (object oOne in (IEnumerable) dState["page1Asins"]) lSavedPage1Asins.Add(Convert.ToString(oOne));
             aSavedRows = dState.ContainsKey("catalog") ? dState["catalog"] as object[] : null;
+            aSavedKindleRows = dState.ContainsKey("kindleCatalog") ? dState["kindleCatalog"] as object[] : null;
+            aSavedGoodreadsRows = dState.ContainsKey("goodreadsCatalog") ? dState["goodreadsCatalog"] as object[] : null;
+            aSavedBookshareRows = dState.ContainsKey("bookshareCatalog") ? dState["bookshareCatalog"] as object[] : null;
             // Schema 2 dropped the Google Books lane, took the publisher
             // from Audible's product_details or Open Library instead, and
             // retired the Categories field.  A state saved under the old
@@ -1478,7 +1532,7 @@ class bookFido
             try
             {
                 buildLibraryFiles(sDownloadDirShared);
-                writeLibraryXlsx(sDownloadDirShared);
+                writeWorkbook(sDownloadDirShared);
                 log("Refreshed the catalog documents with the details gathered so far");
             }
             catch (Exception oException) { log("The periodic document refresh failed: " + oException.Message); }
@@ -1504,6 +1558,9 @@ class bookFido
             foreach (string sOne in lPage1AsinsSeen) lPage1.Add(sOne);
             dState["page1Asins"] = lPage1;
             dState["catalog"] = lCatalog;
+            dState["kindleCatalog"] = lKindleCatalog;
+            dState["goodreadsCatalog"] = lGoodreadsCatalog;
+            dState["bookshareCatalog"] = lBookshareCatalog;
             lock (oAuthorLock)
             {
                 dState["authorWikiBio"] = dAuthorWikiBio;
@@ -1671,7 +1728,7 @@ class bookFido
                 iPercent = iWorkTotal > 0 ? iDone * 100 / iWorkTotal : 100;
                 iEtaMinutes = (iPredictedSeconds + 59) / 60;
                 sMinutesWord = iEtaMinutes == 1 ? " minute" : " minutes";
-                log("Details gathered so far: Audible " + iAudibleDone + ", Open Library " + iOpenLibraryDone + ", Wikipedia " + iWikipediaDone + " of " + lCatalog.Count + "; author pages checked: " + iAuthorsDone + " of " + setAuthorsQueued.Count + "; overall " + iPercent + " percent" + (bEtaReady && iEtaMinutes > 0 ? ", about " + iEtaMinutes + sMinutesWord + " remaining" : ""));
+                log("Details gathered so far: Audible " + iAudibleDone + ", Open Library " + iOpenLibraryDone + ", Wikipedia " + iWikipediaDone + "; author pages checked: " + iAuthorsDone + " of " + setAuthorsQueued.Count + "; overall " + iPercent + " percent" + (bEtaReady && iEtaMinutes > 0 ? ", about " + iEtaMinutes + sMinutesWord + " remaining" : ""));
                 sProgressText = iPercent + "%";
                 sBoxText = bEtaReady && iEtaMinutes > 0 ? "About " + iEtaMinutes + sMinutesWord + " remain" : "Gathering details";
                 showTimedMessageBox(sBoxText);
@@ -1686,7 +1743,7 @@ class bookFido
         if (threadAudible != null) threadAudible.Join();
         if (threadOpenLibrary != null) threadOpenLibrary.Join();
         if (threadWikipedia != null) threadWikipedia.Join();
-        log("Detail gathering finished: Audible " + iAudibleDone + ", Open Library " + iOpenLibraryDone + ", Wikipedia " + iWikipediaDone + " of " + lCatalog.Count + "; author pages checked: " + iAuthorsDone + " of " + setAuthorsQueued.Count);
+        log("Detail gathering finished: Audible " + iAudibleDone + ", Open Library " + iOpenLibraryDone + ", Wikipedia " + iWikipediaDone + "; author pages checked: " + iAuthorsDone + " of " + setAuthorsQueued.Count);
     }
 
     // Takes the next waiting row from a lane's queue, or null when the queue
@@ -2228,76 +2285,88 @@ class bookFido
     // columns, and no merged cells.  Unlike the documents, every column is
     // present for every title, and a value that is not known is left as a
     // truly empty cell, which a screen reader reads as blank.
-    static string writeLibraryXlsx(string sDownloadDir)
+    // Writes bookFido.xlsx: one workbook holding one sheet per library
+    // source, each sheet following the screen-reader conventions, with a
+    // sheet-scoped ColumnTitle01 name on each sheet's A1 so JAWS announces
+    // column headers everywhere in the workbook.
+    static void writeWorkbook(string sDownloadDir)
+    {
+        string sPath;
+
+        sPath = Path.Combine(sDownloadDir, "bookFido.xlsx");
+        using (ExcelPackage oPackage = new ExcelPackage())
+        {
+            fillAudibleSheet(oPackage);
+            if (lKindleCatalog.Count > 0) fillKindleSheet(oPackage);
+            if (lGoodreadsCatalog.Count > 0) fillGoodreadsSheet(oPackage);
+            if (lBookshareCatalog.Count > 0) fillBookshareSheet(oPackage);
+            if (File.Exists(sPath)) File.Delete(sPath);
+            File.WriteAllBytes(sPath, oPackage.GetAsByteArray());
+        }
+        log("The spreadsheet workbook was saved as " + sPath + " with one sheet per library");
+    }
+
+    static void fillAudibleSheet(ExcelPackage oPackage)
     {
         int iCol, iRow, iWidth;
-        string sPath;
         int[] aWidths;
         string[] aHeaders;
         List<Dictionary<string, object>> lSorted;
         List<string[]> lPairs;
 
-        sPath = Path.Combine(sDownloadDir, "Audible_Library.xlsx");
         aHeaders = new string[] { "Title", "ASIN", "Audible link", "By", "First published", "Genres", "Language", "Length", "Length in minutes", "Narrated by", "Progress", "Publisher", "Rating", "Rating average", "Ratings count", "Release date", "Series", "Summary", "Wikipedia" };
         lSorted = new List<Dictionary<string, object>>(lCatalog);
         lSorted.Sort(compareCatalogRowsByTitle);
-        using (ExcelPackage oPackage = new ExcelPackage())
+        ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("Audible");
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
+        oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
+        iRow = 1;
+        foreach (Dictionary<string, object> dRow in lSorted)
         {
-            ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("Audible Library");
-            for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
-            oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
-            iRow = 1;
-            foreach (Dictionary<string, object> dRow in lSorted)
-            {
-                iRow = iRow + 1;
-                Monitor.Enter(dRow);
-                oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
-                oSheet.Cells[iRow, 2].Value = catalogValue(dRow, "asin");
-                oSheet.Cells[iRow, 3].Value = catalogValue(dRow, "url");
-                lPairs = catalogLinks(dRow, "authors");
-                oSheet.Cells[iRow, 4].Value = joinPairNames(lPairs);
-                oSheet.Cells[iRow, 5].Value = catalogValue(dRow, "firstPublished");
-                oSheet.Cells[iRow, 6].Value = string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray());
-                oSheet.Cells[iRow, 7].Value = catalogValue(dRow, "language");
-                oSheet.Cells[iRow, 8].Value = catalogValue(dRow, "lengthText");
-                if (dRow.ContainsKey("lengthMinutes")) oSheet.Cells[iRow, 9].Value = Convert.ToInt32(dRow["lengthMinutes"]);
-                lPairs = catalogLinks(dRow, "narrators");
-                oSheet.Cells[iRow, 10].Value = joinPairNames(lPairs);
-                oSheet.Cells[iRow, 11].Value = Convert.ToBoolean(dRow["finished"]) ? "Finished" : catalogValue(dRow, "timeLeft");
-                oSheet.Cells[iRow, 12].Value = catalogValue(dRow, "publisher");
-                oSheet.Cells[iRow, 13].Value = catalogValue(dRow, "ratingText");
-                if (dRow.ContainsKey("ratingValue")) oSheet.Cells[iRow, 14].Value = Convert.ToDouble(dRow["ratingValue"]);
-                if (dRow.ContainsKey("ratingsCount")) oSheet.Cells[iRow, 15].Value = Convert.ToInt32(dRow["ratingsCount"]);
-                oSheet.Cells[iRow, 16].Value = catalogValue(dRow, "releaseDate");
-                lPairs = catalogLinks(dRow, "series");
-                oSheet.Cells[iRow, 17].Value = joinPairNames(lPairs);
-                oSheet.Cells[iRow, 18].Value = catalogValue(dRow, "summary");
-                oSheet.Cells[iRow, 19].Value = catalogValue(dRow, "wikipediaUrl");
-                Monitor.Exit(dRow);
-            }
-            aWidths = new int[aHeaders.Length];
-            for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
-            {
-                aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
-                for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
-                {
-                    iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
-                    if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
-                }
-                if (aWidths[iCol - 1] > 40)
-                {
-                    aWidths[iCol - 1] = 40;
-                    oSheet.Column(iCol).Style.WrapText = true;
-                }
-                oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
-            }
-            oSheet.View.FreezePanes(2, 1);
-            oPackage.Workbook.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
-            if (File.Exists(sPath)) File.Delete(sPath);
-            File.WriteAllBytes(sPath, oPackage.GetAsByteArray());
+            iRow = iRow + 1;
+            Monitor.Enter(dRow);
+            oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
+            oSheet.Cells[iRow, 2].Value = catalogValue(dRow, "asin");
+            oSheet.Cells[iRow, 3].Value = catalogValue(dRow, "url");
+            lPairs = catalogLinks(dRow, "authors");
+            oSheet.Cells[iRow, 4].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 5].Value = catalogValue(dRow, "firstPublished");
+            oSheet.Cells[iRow, 6].Value = string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray());
+            oSheet.Cells[iRow, 7].Value = catalogValue(dRow, "language");
+            oSheet.Cells[iRow, 8].Value = catalogValue(dRow, "lengthText");
+            if (dRow.ContainsKey("lengthMinutes")) oSheet.Cells[iRow, 9].Value = Convert.ToInt32(dRow["lengthMinutes"]);
+            lPairs = catalogLinks(dRow, "narrators");
+            oSheet.Cells[iRow, 10].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 11].Value = Convert.ToBoolean(dRow["finished"]) ? "Finished" : catalogValue(dRow, "timeLeft");
+            oSheet.Cells[iRow, 12].Value = catalogValue(dRow, "publisher");
+            oSheet.Cells[iRow, 13].Value = catalogValue(dRow, "ratingText");
+            if (dRow.ContainsKey("ratingValue")) oSheet.Cells[iRow, 14].Value = Convert.ToDouble(dRow["ratingValue"]);
+            if (dRow.ContainsKey("ratingsCount")) oSheet.Cells[iRow, 15].Value = Convert.ToInt32(dRow["ratingsCount"]);
+            oSheet.Cells[iRow, 16].Value = catalogValue(dRow, "releaseDate");
+            lPairs = catalogLinks(dRow, "series");
+            oSheet.Cells[iRow, 17].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 18].Value = catalogValue(dRow, "summary");
+            oSheet.Cells[iRow, 19].Value = catalogValue(dRow, "wikipediaUrl");
+            Monitor.Exit(dRow);
         }
-        log("The spreadsheet catalog was saved as " + sPath);
-        return sPath;
+        aWidths = new int[aHeaders.Length];
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
+        {
+            aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
+            for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
+            {
+                iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
+                if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
+            }
+            if (aWidths[iCol - 1] > 40)
+            {
+                aWidths[iCol - 1] = 40;
+                oSheet.Column(iCol).Style.WrapText = true;
+            }
+            oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
+        }
+        oSheet.View.FreezePanes(2, 1);
+        oSheet.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
     }
 
     // Joins the names of link pairs for a spreadsheet cell.
@@ -2339,9 +2408,49 @@ class bookFido
 
         sTitle = catalogValue(dRow, "title");
         sYear = catalogValue(dRow, "firstPublished");
-        if (sYear.Length != 4) { sYear = catalogValue(dRow, "releaseDate"); sYear = sYear.Length >= 4 ? sYear.Substring(0, 4) : ""; }
-        foreach (char chOne in sYear) { if (!char.IsDigit(chOne)) return sTitle; }
-        return sYear.Length == 4 ? sTitle + " (" + sYear + ")" : sTitle;
+        if (!isYear(sYear)) sYear = yearFrom(catalogValue(dRow, "releaseDate"));
+        if (sYear == "") sYear = yearFrom(grField(dRow, "date pub"));
+        if (sYear == "") sYear = yearFrom(grField(dRow, "date pub edition"));
+        return sYear == "" ? sTitle : sTitle + " (" + sYear + ")";
+    }
+
+    static bool isYear(string sText)
+    {
+        if (sText == null || sText.Length != 4) return false;
+        foreach (char chOne in sText) { if (!char.IsDigit(chOne)) return false; }
+        return true;
+    }
+
+    // The last plausible four-digit year inside a date or free text.
+    static string yearFrom(string sText)
+    {
+        string sFound;
+
+        sFound = "";
+        foreach (System.Text.RegularExpressions.Match oMatch in System.Text.RegularExpressions.Regex.Matches(sText == null ? "" : sText, "\\b(1[5-9][0-9][0-9]|20[0-9][0-9])\\b")) sFound = oMatch.Groups[1].Value;
+        return sFound;
+    }
+
+    // The edition a book represents, from its library and its format field:
+    // Kindle, Audible, Print, EPUB, or Generic.
+    static string editionText(Dictionary<string, object> dRow, string sLibrary)
+    {
+        string sFormat;
+
+        if (sLibrary == "Audible") return "Audible";
+        if (sLibrary == "Kindle") return "Kindle";
+        if (sLibrary == "Goodreads")
+        {
+            sFormat = grField(dRow, "format").ToLowerInvariant();
+            if (sFormat.Contains("kindle")) return "Kindle";
+            if (sFormat.Contains("audible") || sFormat.Contains("audio")) return "Audible";
+            if (sFormat.Contains("epub") || sFormat.Contains("ebook")) return "EPUB";
+            if (sFormat.Contains("paperback") || sFormat.Contains("hardcover") || sFormat.Contains("hardback") || sFormat.Contains("print") || sFormat.Contains("mass market") || sFormat.Contains("library binding") || sFormat.Contains("board book") || sFormat.Contains("spiral")) return "Print";
+            return "Generic";
+        }
+        sFormat = bsField(dRow, "Format").ToLowerInvariant();
+        if (sFormat.Contains("epub")) return "EPUB";
+        return "Generic";
     }
 
     // The sort key for a person: the surname first, case folded, with the
@@ -2405,13 +2514,16 @@ class bookFido
     // return one without an additional per-author request.
     static void appendAuthorsAppendix(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, List<string[]>> dByAuthor, Dictionary<string, int> dAuthorMinutes)
     {
+        appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, dAuthorMinutes, "appendix-h", "Appendix H: About the Authors", "Every author in the library, with the number of titles and the listening time they account for, and a biography when a reliable one was found.");
+    }
+
+    static void appendAuthorsAppendix(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, List<string[]>> dByAuthor, Dictionary<string, int> dAuthorMinutes, string sId, string sHeading, string sLead)
+    {
         int iMinutes;
-        string sLead;
         List<string> lAuthors;
 
-        sbHtml.Append("<h2 id=\"appendix-h\">Appendix H: About the Authors</h2>\r\n");
-        sbMd.Append("## Appendix H: About the Authors {#appendix-h}\r\n\r\n");
-        sLead = "Every author in the library, with the number of titles and the listening time they account for, and a biography when a reliable one was found.";
+        sbHtml.Append("<h2 id=\"" + sId + "\">" + htmlText(sHeading) + "</h2>\r\n");
+        sbMd.Append("## " + sHeading + " {#" + sId + "}\r\n\r\n");
         sbHtml.Append("<p>" + htmlText(sLead) + "</p>\r\n");
         sbMd.Append(sLead + "\r\n\r\n");
         lAuthors = new List<string>(dByAuthor.Keys);
@@ -2560,6 +2672,41 @@ class bookFido
     // Builds Audible_Library.htm and Audible_Library.md in the download
     // folder from the harvested catalog, and returns the path of the htm
     // file, or an empty string when there was nothing to write.
+    // One book's full entry, with every field its library offers, used by
+    // both the library's own document and the consolidated catalog.
+    static void appendAudibleEntry(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, object> dRow)
+    {
+        string sAsin, sProgress, sTitle, sUrl;
+        List<string[]> lPairs;
+
+        Monitor.Enter(dRow);
+        sAsin = catalogValue(dRow, "asin");
+        sTitle = catalogValue(dRow, "title");
+        sUrl = cleanAudibleUrl(catalogValue(dRow, "url"));
+        if (sTitle == "") { Monitor.Exit(dRow); return; }
+        sbHtml.Append("<h2 id=\"" + sAsin + "\"><a href=\"" + htmlText(sUrl) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
+        sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + sUrl + ") {#" + sAsin.ToLower() + "}\r\n\r\n");
+        lPairs = catalogLinks(dRow, "authors");
+        appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Edition", htmlText(editionText(dRow, "Audible")), editionText(dRow, "Audible"));
+        appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
+        appendField(sbHtml, sbMd, "Genres", htmlText(catalogStrings(dRow, "genreLadders").Count == 0 ? "" : string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray())), catalogStrings(dRow, "genreLadders").Count == 0 ? "" : string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray()));
+        appendField(sbHtml, sbMd, "Language", htmlText(catalogValue(dRow, "language")), catalogValue(dRow, "language"));
+        appendField(sbHtml, sbMd, "Length", htmlText(catalogValue(dRow, "lengthText")), catalogValue(dRow, "lengthText"));
+        lPairs = catalogLinks(dRow, "narrators");
+        appendField(sbHtml, sbMd, "Narrated by", linksHtml(lPairs), linksMd(lPairs));
+        sProgress = Convert.ToBoolean(dRow["finished"]) ? "Finished" : catalogValue(dRow, "timeLeft");
+        appendField(sbHtml, sbMd, "Progress", htmlText(sProgress), sProgress);
+        appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
+        appendField(sbHtml, sbMd, "Rating", htmlText(catalogValue(dRow, "ratingText")), catalogValue(dRow, "ratingText"));
+        appendField(sbHtml, sbMd, "Release date", htmlText(catalogValue(dRow, "releaseDate")), catalogValue(dRow, "releaseDate"));
+        lPairs = catalogLinks(dRow, "series");
+        appendField(sbHtml, sbMd, "Series", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
+        appendField(sbHtml, sbMd, "Summary", htmlText(catalogValue(dRow, "summary")), catalogValue(dRow, "summary"));
+        Monitor.Exit(dRow);
+    }
+
     static string buildLibraryFiles(string sDownloadDir)
     {
         double nRatingSum;
@@ -2657,34 +2804,7 @@ class bookFido
         appendHighlights(sbHtml, sbMd, dByAuthor, dByNarrator, sLongestTitle, iLongestMinutes, sOldestTitle, iOldestYear, sMostRatedTitle, iMostRatings);
         sbHtml.Append("<h2 id=\"titles\">Titles</h2>\r\n");
         sbMd.Append("## Titles {#titles}\r\n\r\n");
-        foreach (Dictionary<string, object> dRow in lOrdered)
-        {
-            Monitor.Enter(dRow);
-            sAsin = catalogValue(dRow, "asin");
-            sTitle = catalogValue(dRow, "title");
-            sUrl = cleanAudibleUrl(catalogValue(dRow, "url"));
-            if (sTitle == "") { Monitor.Exit(dRow); continue; }
-            sbHtml.Append("<h2 id=\"" + sAsin + "\"><a href=\"" + htmlText(sUrl) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
-            sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + sUrl + ") {#" + sAsin.ToLower() + "}\r\n\r\n");
-            lPairs = catalogLinks(dRow, "authors");
-            appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
-            appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
-            appendField(sbHtml, sbMd, "Genres", htmlText(catalogStrings(dRow, "genreLadders").Count == 0 ? "" : string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray())), catalogStrings(dRow, "genreLadders").Count == 0 ? "" : string.Join("; ", catalogStrings(dRow, "genreLadders").ToArray()));
-            appendField(sbHtml, sbMd, "Language", htmlText(catalogValue(dRow, "language")), catalogValue(dRow, "language"));
-            appendField(sbHtml, sbMd, "Length", htmlText(catalogValue(dRow, "lengthText")), catalogValue(dRow, "lengthText"));
-            lPairs = catalogLinks(dRow, "narrators");
-            appendField(sbHtml, sbMd, "Narrated by", linksHtml(lPairs), linksMd(lPairs));
-            sProgress = Convert.ToBoolean(dRow["finished"]) ? "Finished" : catalogValue(dRow, "timeLeft");
-            appendField(sbHtml, sbMd, "Progress", htmlText(sProgress), sProgress);
-            appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
-            appendField(sbHtml, sbMd, "Rating", htmlText(catalogValue(dRow, "ratingText")), catalogValue(dRow, "ratingText"));
-            appendField(sbHtml, sbMd, "Release date", htmlText(catalogValue(dRow, "releaseDate")), catalogValue(dRow, "releaseDate"));
-            lPairs = catalogLinks(dRow, "series");
-            appendField(sbHtml, sbMd, "Series", linksHtml(lPairs), linksMd(lPairs));
-            appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
-            appendField(sbHtml, sbMd, "Summary", htmlText(catalogValue(dRow, "summary")), catalogValue(dRow, "summary"));
-            Monitor.Exit(dRow);
-        }
+        foreach (Dictionary<string, object> dRow in lOrdered) appendAudibleEntry(sbHtml, sbMd, dRow);
         appendAppendix(sbHtml, sbMd, "appendix-a", "Appendix A: Titles by Author", dByAuthor, true);
         appendAppendix(sbHtml, sbMd, "appendix-b", "Appendix B: Titles by Narrator", dByNarrator);
         appendAppendix(sbHtml, sbMd, "appendix-c", "Appendix C: Titles by Series", dBySeries);
@@ -3438,6 +3558,1476 @@ class bookFido
     // detaches.  A synthesized ALT tap is deliberately not used: the tap
     // lands as real input in the foreground browser, whose menu mode then
     // trips the no-active-menus rule that SetForegroundWindow enforces.
+
+
+
+    // How many rows of a catalog carry a given key.
+    static int countRowsWithKey(List<Dictionary<string, object>> lRows, string sKey)
+    {
+        int iCount;
+
+        iCount = 0;
+        foreach (Dictionary<string, object> dRow in lRows) { if (dRow.ContainsKey(sKey)) iCount = iCount + 1; }
+        return iCount;
+    }
+
+    // Reports whether the current page is showing a sign-in form in place:
+    // some sites present one at the library's own address instead of
+    // redirecting, which a url check alone cannot see.
+    static async Task<bool> loginFormShowing()
+    {
+        string sProbe;
+
+        sProbe = await evaluate("(function () { return document.querySelector(\"input[type='password']\") != null ? \"yes\" : \"no\"; })()");
+        return sProbe == "yes";
+    }
+
+    // ---- The Bookshare library ------------------------------------------
+    // The My History page at bookshare.org is server-rendered: each entry
+    // is a resultsBook block with the title link carrying the book id,
+    // author links in natural order, and metadata fields as label and
+    // value pairs, walked by offset.  The same book downloaded more than
+    // once collapses into one catalog row that counts its history entries.
+    // A failure anywhere in this phase is announced and the run continues.
+    // The My History page's filter defaults to a rolling one-month date
+    // window, which hides everything older; the walk clears it by sending
+    // an explicit wide range in the url, since the filter form submits its
+    // fields by GET to the same address.
+    static string bookshareHistoryUrl(int iOffset)
+    {
+        return "https://www.bookshare.org/bookHistory?moduleName=public&titleDownloadPackagingStatus=&startDate=" + Uri.EscapeDataString("01/01/2000") + "&endDate=" + Uri.EscapeDataString(DateTime.Now.ToString("MM/dd/yyyy", System.Globalization.CultureInfo.InvariantCulture)) + "&offset=" + iOffset;
+    }
+
+    static async Task harvestBookshareAsync()
+    {
+        int iOffset, iPage;
+        string sCurrent, sFirstId, sJson, sPreviousFirstId;
+        Dictionary<string, object> dItem, dReply, dRow, dSavedRow;
+        Dictionary<string, Dictionary<string, object>> dByKey, dSavedById, dSeenById;
+        object[] aRows;
+
+        try
+        {
+            sProgressText = "";
+            log("Bookshare history harvest starting, with the date filter cleared from 01/01/2000 through today");
+            await navigate(bookshareHistoryUrl(0));
+            await Task.Delay(3000);
+            sCurrent = await evaluate("location.href");
+            while (sCurrent.ToLower().Contains("/login") || sCurrent.ToLower().Contains("signin"))
+            {
+                focusWhenShown("bookFido: log in to Bookshare");
+                if (MessageBox.Show("You are not logged in to Bookshare yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
+                await navigate(bookshareHistoryUrl(0));
+                await Task.Delay(3000);
+                sCurrent = await evaluate("location.href");
+            }
+            dSavedById = new Dictionary<string, Dictionary<string, object>>();
+            if (aSavedBookshareRows != null)
+            {
+                foreach (object oRow in aSavedBookshareRows)
+                {
+                    dSavedRow = oRow as Dictionary<string, object>;
+                    if (dSavedRow != null && dSavedRow.ContainsKey("bsId")) dSavedById[Convert.ToString(dSavedRow["bsId"])] = dSavedRow;
+                }
+            }
+            dByKey = crossLibraryMap();
+            dSeenById = new Dictionary<string, Dictionary<string, object>>();
+            iOffset = 0;
+            iPage = 0;
+            sPreviousFirstId = "";
+            while (true)
+            {
+                iPage = iPage + 1;
+                if (iPage > 500) { log("The Bookshare harvest stopped at the safety cap of 500 pages"); break; }
+                if (iPage > 1)
+                {
+                    await navigate(bookshareHistoryUrl(iOffset));
+                    await Task.Delay(700);
+                }
+                sJson = await evaluate(bookshareScanScript());
+                if (sJson == "") { log("The Bookshare page scan returned no result, so the harvest stopped at offset " + iOffset); break; }
+                dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+                aRows = dReply.ContainsKey("rows") ? dReply["rows"] as object[] : null;
+                if (aRows == null || aRows.Length == 0)
+                {
+                    if (iPage == 1 && await loginFormShowing())
+                    {
+                        focusWhenShown("bookFido: log in to Bookshare");
+                        if (MessageBox.Show("Bookshare is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
+                        await navigate(bookshareHistoryUrl(0));
+                        await Task.Delay(3000);
+                        iPage = 0;
+                        iOffset = 0;
+                        continue;
+                    }
+                    if (iPage == 1) log("The Bookshare history page held no entries; the page title was: " + await evaluate("document.title") + "; the address was: " + await evaluate("location.href"));
+                    break;
+                }
+                sFirstId = "";
+                foreach (object oItem in aRows)
+                {
+                    dItem = oItem as Dictionary<string, object>;
+                    if (dItem == null || !dItem.ContainsKey("id")) continue;
+                    if (sFirstId == "") sFirstId = Convert.ToString(dItem["id"]);
+                    if (dSeenById.ContainsKey(Convert.ToString(dItem["id"])))
+                    {
+                        dRow = dSeenById[Convert.ToString(dItem["id"])];
+                        dRow["bsCount"] = (dRow.ContainsKey("bsCount") ? Convert.ToInt32(dRow["bsCount"]) : 1) + 1;
+                        continue;
+                    }
+                    dRow = bookshareRowFromItem(dItem, dSavedById);
+                    if (dRow == null) continue;
+                    dSeenById[Convert.ToString(dItem["id"])] = dRow;
+                    lBookshareCatalog.Add(dRow);
+                    enqueueGoodreadsForEnrichment(dRow, dByKey);
+                }
+                if (sFirstId == "" || sFirstId == sPreviousFirstId) break;
+                sPreviousFirstId = sFirstId;
+                iOffset = iOffset + aRows.Length;
+                if (iPage % 3 == 0) showTimedMessageBox("Bookshare history: " + lBookshareCatalog.Count + " books so far");
+            }
+            log("Bookshare history harvest complete: " + lBookshareCatalog.Count + " books, of which " + countRowsWithKey(lBookshareCatalog, "twinKey") + " share details with another library");
+            showTimedMessageBox("Bookshare history: " + lBookshareCatalog.Count + " books found");
+            savePeriodically(true);
+        }
+        catch (Exception oException)
+        {
+            log("The Bookshare history could not be harvested, so the run continues without it: " + oException.Message);
+            showTimedMessageBox("The Bookshare history could not be gathered this run");
+        }
+    }
+
+    // The in-page scan of one My History page: each resultsBook block gives
+    // the title link with the book id, the author links, and every
+    // metadata field as its own label and value, with the inline help
+    // popovers stripped before the value is read.
+    static string bookshareScanScript()
+    {
+        return "(function () {" +
+            " var lOut = [];" +
+            " var lBlocks = document.querySelectorAll(\"div.resultsBook\");" +
+            " for (var i = 0; i < lBlocks.length; i++) {" +
+            "  var oBlock = lBlocks[i];" +
+            "  var o = { fields: {}, authors: [] };" +
+            "  var oTitle = oBlock.querySelector(\"h2.bookTitle a\");" +
+            "  if (!oTitle) continue;" +
+            "  o.title = oTitle.textContent.trim();" +
+            "  var sHref = oTitle.getAttribute(\"href\") || \"\";" +
+            "  var oIdMatch = sHref.match(/\\/browse\\/book\\/(\\d+)/);" +
+            "  o.id = oIdMatch ? oIdMatch[1] : \"\";" +
+            "  var lAuthors = oBlock.querySelectorAll(\"span.bookAuthor a\");" +
+            "  for (var j = 0; j < lAuthors.length; j++) o.authors.push(lAuthors[j].textContent.trim());" +
+            "  var lFields = oBlock.querySelectorAll(\"p.metadataField\");" +
+            "  for (var k = 0; k < lFields.length; k++) {" +
+            "   var oClone = lFields[k].cloneNode(true);" +
+            "   var oStrong = oClone.querySelector(\"strong\");" +
+            "   var sLabel = oStrong ? oStrong.textContent.replace(\":\", \"\").trim() : \"\";" +
+            "   if (oStrong) oStrong.parentNode.removeChild(oStrong);" +
+            "   var lStrip = oClone.querySelectorAll(\"a.inlineHelp, div[id], select, script, style\");" +
+            "   for (var m = 0; m < lStrip.length; m++) if (lStrip[m].parentNode) lStrip[m].parentNode.removeChild(lStrip[m]);" +
+            "   var sValue = oClone.textContent.replace(/\\s+/g, \" \").trim();" +
+            "   if (sLabel != \"\" && sValue != \"\") o.fields[sLabel] = sValue;" +
+            "  }" +
+            "  lOut.push(o);" +
+            " }" +
+            " return JSON.stringify({ rows: lOut });" +
+            "})()";
+    }
+
+    // Shapes one scanned Bookshare entry into a catalog row: the book id
+    // and page url, the authors, and every metadata field kept generically
+    // under Bookshare's own label.  Enrichment already saved for this book
+    // id in the state snapshot is carried over.
+    static Dictionary<string, object> bookshareRowFromItem(Dictionary<string, object> dItem, Dictionary<string, Dictionary<string, object>> dSavedById)
+    {
+        string sId, sName;
+        Dictionary<string, object> dPair, dRow, dSaved;
+        List<object> lAuthors;
+
+        if (!dItem.ContainsKey("title") || Convert.ToString(dItem["title"]).Trim() == "") return null;
+        sId = dItem.ContainsKey("id") ? Convert.ToString(dItem["id"]) : "";
+        if (sId == "") return null;
+        dRow = new Dictionary<string, object>();
+        dRow["bsId"] = sId;
+        dRow["title"] = Convert.ToString(dItem["title"]).Trim();
+        dRow["bsUrl"] = "https://www.bookshare.org/browse/book/" + sId;
+        dRow["bsCount"] = 1;
+        lAuthors = new List<object>();
+        if (dItem.ContainsKey("authors") && dItem["authors"] != null)
+        {
+            foreach (object oName in (IEnumerable) dItem["authors"])
+            {
+                sName = Convert.ToString(oName).Trim();
+                if (sName == "") continue;
+                dPair = new Dictionary<string, object>();
+                dPair["name"] = sName;
+                dPair["url"] = "";
+                lAuthors.Add(dPair);
+            }
+        }
+        dRow["authors"] = lAuthors;
+        if (dItem.ContainsKey("fields")) dRow["bsFields"] = dItem["fields"];
+        if (dSavedById.ContainsKey(sId))
+        {
+            dSaved = dSavedById[sId];
+            foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle", "openLibraryChecked", "wikipediaChecked" })
+            {
+                if (dSaved.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dSaved[sField];
+            }
+        }
+        return dRow;
+    }
+
+    // A named Bookshare metadata field's value, or an empty string.
+    static string bsField(Dictionary<string, object> dRow, string sLabel)
+    {
+        Dictionary<string, object> dFields;
+
+        if (!dRow.ContainsKey("bsFields")) return "";
+        dFields = dRow["bsFields"] as Dictionary<string, object>;
+        if (dFields == null || !dFields.ContainsKey(sLabel)) return "";
+        return Convert.ToString(dFields[sLabel]).Trim();
+    }
+
+    // After the lanes drain, every Bookshare row tied to a twin copies the
+    // twin's gathered details, whichever library the twin lives in.
+    static void resolveBookshareTwins()
+    {
+        Dictionary<string, object> dTwin;
+        Dictionary<string, Dictionary<string, object>> dByKey;
+
+        if (lBookshareCatalog.Count == 0) return;
+        dByKey = crossLibraryMap();
+        foreach (Dictionary<string, object> dRow in lBookshareCatalog)
+        {
+            if (!dRow.ContainsKey("twinKey") || !dByKey.ContainsKey(Convert.ToString(dRow["twinKey"]))) continue;
+            dTwin = dByKey[Convert.ToString(dRow["twinKey"])];
+            lock (dTwin)
+            {
+                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
+                {
+                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
+                }
+            }
+        }
+    }
+
+    // Builds Bookshare_Library.htm and Bookshare_Library.md in the download
+    // folder, in the family shape: a table of contents, an introduction
+    // with counts, every book's fields under Bookshare's own labels plus
+    // the gathered details, and appendixes ending with About the Authors.
+    // One book's full entry, with every field its library offers, used by
+    // both the library's own document and the consolidated catalog.
+    static void appendBookshareEntry(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, object> dRow)
+    {
+        string sId, sTitle;
+        List<string> lExtraLabels;
+        List<string[]> lPairs;
+
+        Monitor.Enter(dRow);
+        sId = "bs" + Convert.ToString(dRow["bsId"]);
+        sTitle = catalogValue(dRow, "title");
+        if (sTitle == "") { Monitor.Exit(dRow); return; }
+        sbHtml.Append("<h2 id=\"" + sId + "\"><a href=\"" + htmlText(catalogValue(dRow, "bsUrl")) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
+        sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + catalogValue(dRow, "bsUrl") + ") {#" + sId + "}\r\n\r\n");
+        lPairs = catalogLinks(dRow, "authors");
+        appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Edition", htmlText(editionText(dRow, "Bookshare")), editionText(dRow, "Bookshare"));
+        appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
+        if (dRow.ContainsKey("bsCount") && Convert.ToInt32(dRow["bsCount"]) > 1) appendField(sbHtml, sbMd, "History entries", htmlText(Convert.ToString(dRow["bsCount"])), Convert.ToString(dRow["bsCount"]));
+        appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
+        appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
+        lExtraLabels = new List<string>();
+        if (dRow.ContainsKey("bsFields") && dRow["bsFields"] is Dictionary<string, object>)
+        {
+            foreach (KeyValuePair<string, object> oEntry in (Dictionary<string, object>) dRow["bsFields"]) lExtraLabels.Add(oEntry.Key);
+        }
+        lExtraLabels.Sort(StringComparer.OrdinalIgnoreCase);
+        foreach (string sLabel in lExtraLabels)
+        {
+            appendField(sbHtml, sbMd, friendlyKindleLabel(sLabel), htmlText(bsField(dRow, sLabel)), bsField(dRow, sLabel));
+        }
+        Monitor.Exit(dRow);
+    }
+
+    static void buildBookshareFiles(string sDownloadDir)
+    {
+        string sId, sIntroText, sStats, sTitle;
+        Dictionary<string, List<string[]>> dByAuthor, dByFormat, dByPublisher, dByStatus;
+        List<Dictionary<string, object>> lOrdered;
+        List<string> lExtraLabels;
+        List<string[]> lPairs;
+        StringBuilder sbHtml, sbMd;
+
+        dByAuthor = new Dictionary<string, List<string[]>>();
+        dByFormat = new Dictionary<string, List<string[]>>();
+        dByPublisher = new Dictionary<string, List<string[]>>();
+        dByStatus = new Dictionary<string, List<string[]>>();
+        sbHtml = new StringBuilder();
+        sbMd = new StringBuilder();
+        lOrdered = new List<Dictionary<string, object>>(lBookshareCatalog);
+        lOrdered.Sort(compareCatalogRowsByTitle);
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow)
+            {
+                sId = "bs" + Convert.ToString(dRow["bsId"]);
+                sTitle = catalogValue(dRow, "title");
+                foreach (string[] aPair in catalogLinks(dRow, "authors")) addToIndex(dByAuthor, aPair[0], sTitle, sId);
+                if (bsField(dRow, "Format") != "") addToIndex(dByFormat, bsField(dRow, "Format"), sTitle, sId);
+                if (bsField(dRow, "Status") != "") addToIndex(dByStatus, bsField(dRow, "Status"), sTitle, sId);
+                if (catalogValue(dRow, "publisher") != "") addToIndex(dByPublisher, catalogValue(dRow, "publisher"), sTitle, sId);
+            }
+        }
+        sIntroText = "This catalog lists every book in the Bookshare My History list, with every field the history page offers under its own label, enriched from Open Library and Wikipedia.  A book that also exists in the Audible, Kindle, or Goodreads library shares the details already gathered there, and a book downloaded more than once appears one time with its history entries counted.";
+        sStats = "The history holds " + lBookshareCatalog.Count + (lBookshareCatalog.Count == 1 ? " book" : " books") + " by " + dByAuthor.Count + (dByAuthor.Count == 1 ? " author" : " authors") + ".";
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>Bookshare Library</title>\r\n</head>\r\n<body>\r\n");
+        sbHtml.Append("<h1>Bookshare Library</h1>\r\n");
+        sbHtml.Append("<nav aria-label=\"Table of contents\">\r\n<h2 id=\"contents\">Contents</h2>\r\n<ul>\r\n");
+        sbHtml.Append("<li><a href=\"#introduction\">Introduction</a></li>\r\n<li><a href=\"#books\">Books</a>\r\n<ul>\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbHtml.Append("<li><a href=\"#bs" + Convert.ToString(dRow["bsId"]) + "\">" + htmlText(titleWithYear(dRow)) + "</a></li>\r\n"); }
+        }
+        sbHtml.Append("</ul>\r\n</li>\r\n");
+        sbHtml.Append("<li><a href=\"#appendix-a\">Appendix A: Books by Author</a></li>\r\n<li><a href=\"#appendix-b\">Appendix B: Books by Format</a></li>\r\n<li><a href=\"#appendix-c\">Appendix C: Books by Status</a></li>\r\n<li><a href=\"#appendix-d\">Appendix D: Books by Publisher</a></li>\r\n<li><a href=\"#appendix-e\">Appendix E: About the Authors</a></li>\r\n");
+        sbHtml.Append("</ul>\r\n</nav>\r\n");
+        sbMd.Append("# Bookshare Library\r\n\r\n## Contents {#contents}\r\n\r\n");
+        sbMd.Append("- [Introduction](#introduction)\r\n- [Books](#books)\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbMd.Append("    - [" + mdText(titleWithYear(dRow)) + "](#bs" + Convert.ToString(dRow["bsId"]) + ")\r\n"); }
+        }
+        sbMd.Append("- [Appendix A: Books by Author](#appendix-a)\r\n- [Appendix B: Books by Format](#appendix-b)\r\n- [Appendix C: Books by Status](#appendix-c)\r\n- [Appendix D: Books by Publisher](#appendix-d)\r\n- [Appendix E: About the Authors](#appendix-e)\r\n\r\n");
+        sbHtml.Append("<h2 id=\"introduction\">Introduction</h2>\r\n<p>" + htmlText(sIntroText) + "</p>\r\n<p>" + htmlText(sStats) + "</p>\r\n");
+        sbMd.Append("## Introduction {#introduction}\r\n\r\n" + sIntroText + "\r\n\r\n" + sStats + "\r\n\r\n");
+        sbHtml.Append("<h2 id=\"books\">Books</h2>\r\n");
+        sbMd.Append("## Books {#books}\r\n\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered) appendBookshareEntry(sbHtml, sbMd, dRow);
+        appendAppendix(sbHtml, sbMd, "appendix-a", "Appendix A: Books by Author", dByAuthor, true);
+        appendAppendix(sbHtml, sbMd, "appendix-b", "Appendix B: Books by Format", dByFormat);
+        appendAppendix(sbHtml, sbMd, "appendix-c", "Appendix C: Books by Status", dByStatus);
+        appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
+        appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the history, with the number of books they account for, and a biography when a reliable one was found.");
+        sbHtml.Append("</body>\r\n</html>\r\n");
+        File.WriteAllText(Path.Combine(sDownloadDir, "Bookshare_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(sDownloadDir, "Bookshare_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        log("The Bookshare catalog was saved as Bookshare_Library.htm and Bookshare_Library.md in " + sDownloadDir);
+    }
+
+    // Writes Bookshare_Library.xlsx with the family's screen-reader
+    // conventions.
+    static void fillBookshareSheet(ExcelPackage oPackage)
+    {
+        int iCol, iRow, iWidth;
+        int[] aWidths;
+        string[] aHeaders;
+        List<Dictionary<string, object>> lSorted;
+        List<string[]> lPairs;
+
+        aHeaders = new string[] { "Title", "Book id", "Bookshare link", "By", "Date", "Format", "Status", "History entries", "First published", "Publisher", "Wikipedia" };
+        lSorted = new List<Dictionary<string, object>>(lBookshareCatalog);
+        lSorted.Sort(compareCatalogRowsByTitle);
+        ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("Bookshare");
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
+        oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
+        iRow = 1;
+        foreach (Dictionary<string, object> dRow in lSorted)
+        {
+            iRow = iRow + 1;
+            Monitor.Enter(dRow);
+            oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
+            oSheet.Cells[iRow, 2].Value = catalogValue(dRow, "bsId");
+            oSheet.Cells[iRow, 3].Value = catalogValue(dRow, "bsUrl");
+            lPairs = catalogLinks(dRow, "authors");
+            oSheet.Cells[iRow, 4].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 5].Value = bsField(dRow, "Date");
+            oSheet.Cells[iRow, 6].Value = bsField(dRow, "Format");
+            oSheet.Cells[iRow, 7].Value = bsField(dRow, "Status");
+            if (dRow.ContainsKey("bsCount")) oSheet.Cells[iRow, 8].Value = Convert.ToInt32(dRow["bsCount"]);
+            oSheet.Cells[iRow, 9].Value = catalogValue(dRow, "firstPublished");
+            oSheet.Cells[iRow, 10].Value = catalogValue(dRow, "publisher");
+            oSheet.Cells[iRow, 11].Value = catalogValue(dRow, "wikipediaUrl");
+            Monitor.Exit(dRow);
+        }
+        aWidths = new int[aHeaders.Length];
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
+        {
+            aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
+            for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
+            {
+                iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
+                if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
+            }
+            if (aWidths[iCol - 1] > 40)
+            {
+                aWidths[iCol - 1] = 40;
+                oSheet.Column(iCol).Style.WrapText = true;
+            }
+            oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
+        }
+        oSheet.View.FreezePanes(2, 1);
+        oSheet.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
+    }
+
+    // ---- The Goodreads library ------------------------------------------
+    // The My Books table at goodreads.com is server-rendered, so the walk
+    // scans its rows straight from the DOM through the logged-in Edge
+    // session, one hundred books per page.  Every column the table offers
+    // is captured under Goodreads' own label for it, including columns the
+    // user has hidden, which still arrive in the page with their values.
+    // A failure anywhere in this phase is announced and the run continues.
+    static async Task harvestGoodreadsAsync()
+    {
+        int iPage, iTotal;
+        string sCurrent, sJson, sListUrl, sUserId;
+        Dictionary<string, object> dItem, dReply, dRow, dSavedRow;
+        Dictionary<string, Dictionary<string, object>> dByKey, dSavedById;
+        object[] aRows;
+
+        try
+        {
+            sProgressText = "";
+            log("Goodreads library harvest starting");
+            await navigate("https://www.goodreads.com/review/list?shelf=all&view=table&per_page=100");
+            await Task.Delay(3000);
+            sCurrent = await evaluate("location.href");
+            while (sCurrent.Contains("/user/sign_in") || sCurrent.ToLower().Contains("signin"))
+            {
+                focusWhenShown("bookFido: log in to Goodreads");
+                if (MessageBox.Show("You are not logged in to Goodreads yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
+                await navigate("https://www.goodreads.com/review/list?shelf=all&view=table&per_page=100");
+                await Task.Delay(3000);
+                sCurrent = await evaluate("location.href");
+            }
+            sUserId = "";
+            foreach (System.Text.RegularExpressions.Match oMatch in System.Text.RegularExpressions.Regex.Matches(sCurrent, "/review/list/(\\d+)")) sUserId = oMatch.Groups[1].Value;
+            if (sUserId == "")
+            {
+                sJson = await evaluate("(function () { var oLink = document.querySelector(\"link[rel='canonical']\"); return oLink ? oLink.href : \"\"; })()");
+                foreach (System.Text.RegularExpressions.Match oMatch in System.Text.RegularExpressions.Regex.Matches(sJson, "/review/list/(\\d+)")) sUserId = oMatch.Groups[1].Value;
+            }
+            if (sUserId == "")
+            {
+                log("The Goodreads list address did not reveal a user id, so the harvest stopped: " + sCurrent);
+                showTimedMessageBox("The Goodreads library could not be gathered this run");
+                return;
+            }
+            sListUrl = "https://www.goodreads.com/review/list/" + sUserId + "?shelf=all&view=table&per_page=100&page=";
+            dSavedById = new Dictionary<string, Dictionary<string, object>>();
+            if (aSavedGoodreadsRows != null)
+            {
+                foreach (object oRow in aSavedGoodreadsRows)
+                {
+                    dSavedRow = oRow as Dictionary<string, object>;
+                    if (dSavedRow != null && dSavedRow.ContainsKey("grId")) dSavedById[Convert.ToString(dSavedRow["grId"])] = dSavedRow;
+                }
+            }
+            dByKey = crossLibraryMap();
+            iTotal = 0;
+            iPage = 0;
+            while (true)
+            {
+                iPage = iPage + 1;
+                if (iPage > 300) { log("The Goodreads harvest stopped at the safety cap of 300 pages"); break; }
+                if (iPage > 1) await navigate(sListUrl + iPage);
+                await Task.Delay(700);
+                sJson = await evaluate(goodreadsScanScript());
+                if (sJson == "") { log("The Goodreads page scan returned no result, so the harvest stopped at page " + iPage); break; }
+                dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+                if (iTotal == 0 && dReply.ContainsKey("total") && Convert.ToString(dReply["total"]) != "") iTotal = Convert.ToInt32(Convert.ToString(dReply["total"]).Replace(",", ""));
+                aRows = dReply.ContainsKey("rows") ? dReply["rows"] as object[] : null;
+                if (aRows == null || aRows.Length == 0)
+                {
+                    if (iPage == 1 && await loginFormShowing())
+                    {
+                        focusWhenShown("bookFido: log in to Goodreads");
+                        if (MessageBox.Show("Goodreads is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
+                        await navigate(sListUrl + "1");
+                        await Task.Delay(3000);
+                        iPage = 0;
+                        continue;
+                    }
+                    break;
+                }
+                foreach (object oItem in aRows)
+                {
+                    dItem = oItem as Dictionary<string, object>;
+                    if (dItem == null) continue;
+                    dRow = goodreadsRowFromItem(dItem, dSavedById);
+                    if (dRow == null) continue;
+                    lGoodreadsCatalog.Add(dRow);
+                    enqueueGoodreadsForEnrichment(dRow, dByKey);
+                }
+                if (iTotal > 0) sProgressText = (lGoodreadsCatalog.Count * 100 / iTotal) + "%";
+                if (iPage % 3 == 0) showTimedMessageBox("Goodreads library: " + lGoodreadsCatalog.Count + " books so far");
+                if (iTotal > 0 && lGoodreadsCatalog.Count >= iTotal) break;
+            }
+            log("Goodreads library harvest complete: " + lGoodreadsCatalog.Count + " books, of which " + countRowsWithKey(lGoodreadsCatalog, "twinKey") + " share details with another library");
+            showTimedMessageBox("Goodreads library: " + lGoodreadsCatalog.Count + " books found");
+            savePeriodically(true);
+        }
+        catch (Exception oException)
+        {
+            log("The Goodreads library could not be harvested, so the run continues without it: " + oException.Message);
+            showTimedMessageBox("The Goodreads library could not be gathered this run");
+        }
+    }
+
+    // The in-page scan of one My Books table page: every row's cells are
+    // read generically, the field name from the cell's class, the display
+    // label from its label element, and the cleaned text from its value
+    // element; title, author, rating, and shelves get exact handling.
+    static string goodreadsScanScript()
+    {
+        return "(function () {" +
+            " var lOut = [];" +
+            " var lRows = document.querySelectorAll(\"tr[id^='review_']\");" +
+            " for (var i = 0; i < lRows.length; i++) {" +
+            "  var oRow = lRows[i];" +
+            "  var o = { fields: {} };" +
+            "  var lCells = oRow.querySelectorAll(\"td\");" +
+            "  for (var j = 0; j < lCells.length; j++) {" +
+            "   var oCell = lCells[j];" +
+            "   var sClass = (oCell.className || \"\").replace(\"field\", \"\").trim();" +
+            "   if (!sClass || sClass == \"checkbox\" || sClass == \"actions\" || sClass == \"cover\" || sClass == \"position\") continue;" +
+            "   var oValue = oCell.querySelector(\"div.value\");" +
+            "   if (!oValue) continue;" +
+            "   if (sClass == \"title\") { var oLink = oValue.querySelector(\"a\"); if (oLink) { o.title = (oLink.getAttribute(\"title\") || oLink.textContent).trim(); o.url = oLink.getAttribute(\"href\") || \"\"; } continue; }" +
+            "   if (sClass == \"author\") { var oA = oValue.querySelector(\"a\"); o.author = (oA ? oA.textContent : oValue.textContent).trim(); o.authorUrl = oA ? (oA.getAttribute(\"href\") || \"\") : \"\"; continue; }" +
+            "   if (sClass == \"rating\") { var oStars = oValue.querySelector(\"div.stars\"); o.myRating = oStars ? (oStars.getAttribute(\"data-rating\") || \"0\") : \"0\"; continue; }" +
+            "   if (sClass == \"shelves\") { var lLinks = oValue.querySelectorAll(\"a.shelfLink\"); var lNames = []; for (var k = 0; k < lLinks.length; k++) lNames.push(lLinks[k].textContent.trim()); o.shelves = lNames; continue; }" +
+            "   var oClone = oValue.cloneNode(true);" +
+            "   var lStrip = oClone.querySelectorAll(\"a[href='#'], a.smallText, a.floatingBoxLink, script, style\");" +
+            "   for (var m = 0; m < lStrip.length; m++) lStrip[m].parentNode.removeChild(lStrip[m]);" +
+            "   var sText = oClone.textContent.replace(/\\s+/g, \" \").trim();" +
+            "   if (sText == \"Write a review\" || sText == \"[edit]\" || sText == \"view (with text)\") sText = \"\";" +
+            "   var oLabel = oCell.querySelector(\"label\");" +
+            "   if (sText != \"\") o.fields[(oLabel ? oLabel.textContent.trim() : sClass)] = sText;" +
+            "  }" +
+            "  lOut.push(o);" +
+            " }" +
+            " var oTitleMatch = document.title.match(/\\(([0-9,]+) books?\\)/);" +
+            " return JSON.stringify({ total: oTitleMatch ? oTitleMatch[1] : \"\", rows: lOut });" +
+            "})()";
+    }
+
+    // Shapes one scanned Goodreads row into a catalog row: the book id and
+    // absolute url, the author restored to natural order, the numeric my
+    // rating, the shelf list, and every other column kept generically under
+    // Goodreads' own label.  Enrichment already saved for this book id in
+    // the state snapshot is carried over.
+    static Dictionary<string, object> goodreadsRowFromItem(Dictionary<string, object> dItem, Dictionary<string, Dictionary<string, object>> dSavedById)
+    {
+        string sAuthorUrl, sId, sName, sUrl;
+        Dictionary<string, object> dPair, dRow, dSaved;
+        List<object> lAuthors;
+
+        if (!dItem.ContainsKey("title") || Convert.ToString(dItem["title"]).Trim() == "") return null;
+        sUrl = dItem.ContainsKey("url") ? Convert.ToString(dItem["url"]) : "";
+        if (sUrl.StartsWith("/")) sUrl = "https://www.goodreads.com" + sUrl;
+        sId = "";
+        foreach (System.Text.RegularExpressions.Match oMatch in System.Text.RegularExpressions.Regex.Matches(sUrl, "/show/(\\d+)")) sId = oMatch.Groups[1].Value;
+        if (sId == "") return null;
+        dRow = new Dictionary<string, object>();
+        dRow["grId"] = sId;
+        dRow["title"] = Convert.ToString(dItem["title"]).Trim();
+        dRow["grUrl"] = sUrl;
+        sName = dItem.ContainsKey("author") ? kindleAuthorName(Convert.ToString(dItem["author"])) : "";
+        sAuthorUrl = dItem.ContainsKey("authorUrl") ? Convert.ToString(dItem["authorUrl"]) : "";
+        if (sAuthorUrl.StartsWith("/")) sAuthorUrl = "https://www.goodreads.com" + sAuthorUrl;
+        lAuthors = new List<object>();
+        if (sName != "")
+        {
+            dPair = new Dictionary<string, object>();
+            dPair["name"] = sName;
+            dPair["url"] = sAuthorUrl;
+            lAuthors.Add(dPair);
+        }
+        dRow["authors"] = lAuthors;
+        if (dItem.ContainsKey("myRating")) dRow["grMyRating"] = Convert.ToInt32(Convert.ToString(dItem["myRating"]));
+        if (dItem.ContainsKey("shelves")) dRow["grShelves"] = dItem["shelves"];
+        if (dItem.ContainsKey("fields")) dRow["grFields"] = dItem["fields"];
+        if (dSavedById.ContainsKey(sId))
+        {
+            dSaved = dSavedById[sId];
+            foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle", "openLibraryChecked", "wikipediaChecked" })
+            {
+                if (dSaved.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dSaved[sField];
+            }
+        }
+        return dRow;
+    }
+
+    // Fills a catalog list straight from the state snapshot's saved rows,
+    // for a library that was not selected this run: its books still feed
+    // cross-library matching and the documents, without any searching.
+    static void materializeSavedRows(object[] aSaved, List<Dictionary<string, object>> lTarget)
+    {
+        Dictionary<string, object> dRow;
+
+        if (aSaved == null || lTarget.Count > 0) return;
+        foreach (object oRow in aSaved) { dRow = oRow as Dictionary<string, object>; if (dRow != null) lTarget.Add(dRow); }
+    }
+
+    // One map of every Audible and Kindle row by the cross-library key, the
+    // Audible row preferred when both hold the same work.
+    static Dictionary<string, Dictionary<string, object>> crossLibraryMap()
+    {
+        string sKey;
+        Dictionary<string, Dictionary<string, object>> dByKey;
+        List<string[]> lPairs;
+
+        dByKey = new Dictionary<string, Dictionary<string, object>>();
+        foreach (Dictionary<string, object> dRow in lCatalog)
+        {
+            lock (dRow)
+            {
+                lPairs = catalogLinks(dRow, "authors");
+                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
+            }
+        }
+        foreach (Dictionary<string, object> dRow in lKindleCatalog)
+        {
+            lock (dRow)
+            {
+                lPairs = catalogLinks(dRow, "authors");
+                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
+            }
+        }
+        foreach (Dictionary<string, object> dRow in lGoodreadsCatalog)
+        {
+            lock (dRow)
+            {
+                lPairs = catalogLinks(dRow, "authors");
+                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
+            }
+        }
+        return dByKey;
+    }
+
+    // Hands a Goodreads row to the Open Library and Wikipedia lanes, unless
+    // the same work already sits in the Audible or Kindle catalog, in which
+    // case the row is tied by key and every gathered detail is copied after
+    // the lanes drain instead of requested again.  Authors dedupe through
+    // the shared sets, so no biography is ever fetched twice.
+    static void enqueueGoodreadsForEnrichment(Dictionary<string, object> dRow, Dictionary<string, Dictionary<string, object>> dByKey)
+    {
+        string sKey;
+        List<string[]> lAuthorPairs;
+
+        lAuthorPairs = catalogLinks(dRow, "authors");
+        sKey = crossLibraryKey(catalogValue(dRow, "title"), lAuthorPairs.Count > 0 ? lAuthorPairs[0][0] : "");
+        if (dByKey.ContainsKey(sKey))
+        {
+            dRow["twinKey"] = sKey;
+        }
+        else
+        {
+            if (!dRow.ContainsKey("openLibraryChecked")) { lock (queueOpenLibrary) { queueOpenLibrary.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
+            if (!dRow.ContainsKey("wikipediaChecked")) { lock (queueWikipedia) { queueWikipedia.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
+        }
+        foreach (string[] aPair in lAuthorPairs)
+        {
+            if (aPair[0] == "" || !setAuthorsQueued.Add(aPair[0])) continue;
+            if (!setAuthorsCheckedWiki.Contains(aPair[0])) { lock (queueAuthorWikipedia) { queueAuthorWikipedia.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
+            if (!setAuthorsCheckedOl.Contains(aPair[0])) { lock (queueAuthorOpenLibrary) { queueAuthorOpenLibrary.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
+        }
+    }
+
+    // After the lanes drain, every Goodreads row tied to a twin copies the
+    // twin's gathered details, whichever library the twin lives in.
+    static void resolveGoodreadsTwins()
+    {
+        Dictionary<string, object> dTwin;
+        Dictionary<string, Dictionary<string, object>> dByKey;
+
+        if (lGoodreadsCatalog.Count == 0) return;
+        dByKey = crossLibraryMap();
+        foreach (Dictionary<string, object> dRow in lGoodreadsCatalog)
+        {
+            if (!dRow.ContainsKey("twinKey") || !dByKey.ContainsKey(Convert.ToString(dRow["twinKey"]))) continue;
+            dTwin = dByKey[Convert.ToString(dRow["twinKey"])];
+            lock (dTwin)
+            {
+                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
+                {
+                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
+                }
+            }
+        }
+    }
+
+    // A named Goodreads column's value, or an empty string.
+    static string grField(Dictionary<string, object> dRow, string sLabel)
+    {
+        Dictionary<string, object> dFields;
+
+        if (!dRow.ContainsKey("grFields")) return "";
+        dFields = dRow["grFields"] as Dictionary<string, object>;
+        if (dFields == null || !dFields.ContainsKey(sLabel)) return "";
+        return Convert.ToString(dFields[sLabel]).Trim();
+    }
+
+    static string grMyRatingText(Dictionary<string, object> dRow)
+    {
+        int iStars;
+
+        if (!dRow.ContainsKey("grMyRating")) return "";
+        iStars = Convert.ToInt32(dRow["grMyRating"]);
+        if (iStars <= 0) return "Unrated";
+        return iStars + " of 5 stars";
+    }
+
+    // Builds Goodreads_Library.htm and Goodreads_Library.md in the download
+    // folder: a table of contents listing every book, an introduction with
+    // counts, every book's columns under Goodreads' own labels plus the
+    // gathered details, and appendixes ending with About the Authors.
+    // One book's full entry, with every field its library offers, used by
+    // both the library's own document and the consolidated catalog.
+    static void appendGoodreadsEntry(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, object> dRow)
+    {
+        string sId, sTitle;
+        List<string> lExtraLabels;
+        List<string[]> lPairs;
+
+        Monitor.Enter(dRow);
+        sId = "gr" + Convert.ToString(dRow["grId"]);
+        sTitle = catalogValue(dRow, "title");
+        if (sTitle == "") { Monitor.Exit(dRow); return; }
+        sbHtml.Append("<h2 id=\"" + sId + "\"><a href=\"" + htmlText(catalogValue(dRow, "grUrl")) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
+        sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + catalogValue(dRow, "grUrl") + ") {#" + sId + "}\r\n\r\n");
+        lPairs = catalogLinks(dRow, "authors");
+        appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Edition", htmlText(editionText(dRow, "Goodreads")), editionText(dRow, "Goodreads"));
+        appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
+        appendField(sbHtml, sbMd, "My rating", htmlText(grMyRatingText(dRow)), grMyRatingText(dRow));
+        appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
+        appendField(sbHtml, sbMd, "Shelves", htmlText(catalogStrings(dRow, "grShelves").Count == 0 ? "" : string.Join(", ", catalogStrings(dRow, "grShelves").ToArray())), catalogStrings(dRow, "grShelves").Count == 0 ? "" : string.Join(", ", catalogStrings(dRow, "grShelves").ToArray()));
+        appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
+        lExtraLabels = new List<string>();
+        if (dRow.ContainsKey("grFields") && dRow["grFields"] is Dictionary<string, object>)
+        {
+            foreach (KeyValuePair<string, object> oEntry in (Dictionary<string, object>) dRow["grFields"]) lExtraLabels.Add(oEntry.Key);
+        }
+        lExtraLabels.Sort(StringComparer.OrdinalIgnoreCase);
+        foreach (string sLabel in lExtraLabels)
+        {
+            appendField(sbHtml, sbMd, friendlyKindleLabel(sLabel), htmlText(grField(dRow, sLabel)), grField(dRow, sLabel));
+        }
+        Monitor.Exit(dRow);
+    }
+
+    static void buildGoodreadsFiles(string sDownloadDir)
+    {
+        int iRatedCount;
+        string sId, sIntroText, sRatingText, sStats, sTitle;
+        Dictionary<string, List<string[]>> dByAuthor, dByPublisher, dByRating, dByShelf;
+        List<Dictionary<string, object>> lOrdered;
+        List<string> lExtraLabels;
+        List<string[]> lPairs;
+        StringBuilder sbHtml, sbMd;
+
+        dByAuthor = new Dictionary<string, List<string[]>>();
+        dByPublisher = new Dictionary<string, List<string[]>>();
+        dByRating = new Dictionary<string, List<string[]>>();
+        dByShelf = new Dictionary<string, List<string[]>>();
+        sbHtml = new StringBuilder();
+        sbMd = new StringBuilder();
+        iRatedCount = 0;
+        lOrdered = new List<Dictionary<string, object>>(lGoodreadsCatalog);
+        lOrdered.Sort(compareCatalogRowsByTitle);
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow)
+            {
+                sId = "gr" + Convert.ToString(dRow["grId"]);
+                sTitle = catalogValue(dRow, "title");
+                foreach (string[] aPair in catalogLinks(dRow, "authors")) addToIndex(dByAuthor, aPair[0], sTitle, sId);
+                foreach (string sShelf in catalogStrings(dRow, "grShelves")) addToIndex(dByShelf, sShelf, sTitle, sId);
+                sRatingText = grMyRatingText(dRow);
+                if (sRatingText != "") addToIndex(dByRating, sRatingText, sTitle, sId);
+                if (sRatingText != "" && sRatingText != "Unrated") iRatedCount = iRatedCount + 1;
+                if (catalogValue(dRow, "publisher") != "") addToIndex(dByPublisher, catalogValue(dRow, "publisher"), sTitle, sId);
+            }
+        }
+        sIntroText = "This catalog lists every book on the Goodreads My Books shelves, with every column the Goodreads table offers under its own label, enriched from Open Library and Wikipedia.  A book that also exists in the Audible or Kindle library shares the details already gathered there.";
+        sStats = "The shelves hold " + lGoodreadsCatalog.Count + (lGoodreadsCatalog.Count == 1 ? " book" : " books") + " by " + dByAuthor.Count + (dByAuthor.Count == 1 ? " author" : " authors") + ", across " + dByShelf.Count + (dByShelf.Count == 1 ? " shelf" : " shelves") + ", with " + iRatedCount + " rated.";
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>Goodreads Library</title>\r\n</head>\r\n<body>\r\n");
+        sbHtml.Append("<h1>Goodreads Library</h1>\r\n");
+        sbHtml.Append("<nav aria-label=\"Table of contents\">\r\n<h2 id=\"contents\">Contents</h2>\r\n<ul>\r\n");
+        sbHtml.Append("<li><a href=\"#introduction\">Introduction</a></li>\r\n<li><a href=\"#books\">Books</a>\r\n<ul>\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbHtml.Append("<li><a href=\"#gr" + Convert.ToString(dRow["grId"]) + "\">" + htmlText(titleWithYear(dRow)) + "</a></li>\r\n"); }
+        }
+        sbHtml.Append("</ul>\r\n</li>\r\n");
+        sbHtml.Append("<li><a href=\"#appendix-a\">Appendix A: Books by Author</a></li>\r\n<li><a href=\"#appendix-b\">Appendix B: Books by Shelf</a></li>\r\n<li><a href=\"#appendix-c\">Appendix C: Books by My Rating</a></li>\r\n<li><a href=\"#appendix-d\">Appendix D: Books by Publisher</a></li>\r\n<li><a href=\"#appendix-e\">Appendix E: About the Authors</a></li>\r\n");
+        sbHtml.Append("</ul>\r\n</nav>\r\n");
+        sbMd.Append("# Goodreads Library\r\n\r\n## Contents {#contents}\r\n\r\n");
+        sbMd.Append("- [Introduction](#introduction)\r\n- [Books](#books)\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbMd.Append("    - [" + mdText(titleWithYear(dRow)) + "](#gr" + Convert.ToString(dRow["grId"]) + ")\r\n"); }
+        }
+        sbMd.Append("- [Appendix A: Books by Author](#appendix-a)\r\n- [Appendix B: Books by Shelf](#appendix-b)\r\n- [Appendix C: Books by My Rating](#appendix-c)\r\n- [Appendix D: Books by Publisher](#appendix-d)\r\n- [Appendix E: About the Authors](#appendix-e)\r\n\r\n");
+        sbHtml.Append("<h2 id=\"introduction\">Introduction</h2>\r\n<p>" + htmlText(sIntroText) + "</p>\r\n<p>" + htmlText(sStats) + "</p>\r\n");
+        sbMd.Append("## Introduction {#introduction}\r\n\r\n" + sIntroText + "\r\n\r\n" + sStats + "\r\n\r\n");
+        sbHtml.Append("<h2 id=\"books\">Books</h2>\r\n");
+        sbMd.Append("## Books {#books}\r\n\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered) appendGoodreadsEntry(sbHtml, sbMd, dRow);
+        appendAppendix(sbHtml, sbMd, "appendix-a", "Appendix A: Books by Author", dByAuthor, true);
+        appendAppendix(sbHtml, sbMd, "appendix-b", "Appendix B: Books by Shelf", dByShelf);
+        appendAppendix(sbHtml, sbMd, "appendix-c", "Appendix C: Books by My Rating", dByRating);
+        appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
+        appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author on the shelves, with the number of books they account for, and a biography when a reliable one was found.");
+        sbHtml.Append("</body>\r\n</html>\r\n");
+        File.WriteAllText(Path.Combine(sDownloadDir, "Goodreads_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(sDownloadDir, "Goodreads_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        log("The Goodreads catalog was saved as Goodreads_Library.htm and Goodreads_Library.md in " + sDownloadDir);
+    }
+
+    // Writes Goodreads_Library.xlsx with the same screen-reader conventions
+    // as the other spreadsheets.
+    static void fillGoodreadsSheet(ExcelPackage oPackage)
+    {
+        int iCol, iRow, iWidth;
+        string sPages;
+        int[] aWidths;
+        string[] aHeaders;
+        List<Dictionary<string, object>> lSorted;
+        List<string[]> lPairs;
+
+        aHeaders = new string[] { "Title", "Goodreads link", "By", "Avg rating", "My rating", "Shelves", "Date read", "Date added", "Date published", "Format", "ISBN", "ISBN13", "Pages", "First published", "Publisher", "Wikipedia" };
+        lSorted = new List<Dictionary<string, object>>(lGoodreadsCatalog);
+        lSorted.Sort(compareCatalogRowsByTitle);
+        ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("Goodreads");
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
+        oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
+        iRow = 1;
+        foreach (Dictionary<string, object> dRow in lSorted)
+        {
+            iRow = iRow + 1;
+            Monitor.Enter(dRow);
+            oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
+            oSheet.Cells[iRow, 2].Value = catalogValue(dRow, "grUrl");
+            lPairs = catalogLinks(dRow, "authors");
+            oSheet.Cells[iRow, 3].Value = joinPairNames(lPairs);
+            if (grField(dRow, "avg rating") != "") { try { oSheet.Cells[iRow, 4].Value = Convert.ToDouble(grField(dRow, "avg rating")); } catch (Exception) { oSheet.Cells[iRow, 4].Value = grField(dRow, "avg rating"); } }
+            if (dRow.ContainsKey("grMyRating") && Convert.ToInt32(dRow["grMyRating"]) > 0) oSheet.Cells[iRow, 5].Value = Convert.ToInt32(dRow["grMyRating"]);
+            oSheet.Cells[iRow, 6].Value = string.Join(", ", catalogStrings(dRow, "grShelves").ToArray());
+            oSheet.Cells[iRow, 7].Value = grField(dRow, "date read");
+            oSheet.Cells[iRow, 8].Value = grField(dRow, "date added");
+            oSheet.Cells[iRow, 9].Value = grField(dRow, "date pub");
+            oSheet.Cells[iRow, 10].Value = grField(dRow, "format");
+            oSheet.Cells[iRow, 11].Value = grField(dRow, "isbn");
+            oSheet.Cells[iRow, 12].Value = grField(dRow, "isbn13");
+            sPages = grField(dRow, "num pages").Replace("pp", "").Trim();
+            if (sPages != "") { try { oSheet.Cells[iRow, 13].Value = Convert.ToInt32(sPages); } catch (Exception) { oSheet.Cells[iRow, 13].Value = sPages; } }
+            oSheet.Cells[iRow, 14].Value = catalogValue(dRow, "firstPublished");
+            oSheet.Cells[iRow, 15].Value = catalogValue(dRow, "publisher");
+            oSheet.Cells[iRow, 16].Value = catalogValue(dRow, "wikipediaUrl");
+            Monitor.Exit(dRow);
+        }
+        aWidths = new int[aHeaders.Length];
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
+        {
+            aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
+            for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
+            {
+                iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
+                if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
+            }
+            if (aWidths[iCol - 1] > 40)
+            {
+                aWidths[iCol - 1] = 40;
+                oSheet.Column(iCol).Style.WrapText = true;
+            }
+            oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
+        }
+        oSheet.View.FreezePanes(2, 1);
+        oSheet.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
+    }
+
+    // ---- The Kindle library ---------------------------------------------
+    // The Kindle catalog comes from the JSON search endpoint behind the
+    // read.amazon.com library page, fetched inside the logged-in Edge
+    // session, so every field the Kindle user interface offers arrives
+    // structured rather than scraped.  A failure anywhere in this phase is
+    // announced and the run continues with the Audible catalog alone.
+    static async Task harvestKindleAsync()
+    {
+        int iBatch;
+        string sCurrent, sJson, sScript, sToken;
+        Dictionary<string, object> dItem, dReply, dRow, dSavedRow;
+        Dictionary<string, Dictionary<string, object>> dAudibleByKey, dSavedByAsin;
+        List<string[]> lAuthorPairs;
+
+        try
+        {
+            sProgressText = "";
+            log("Kindle library harvest starting");
+            await navigate(sKindleLibraryUrl);
+            await Task.Delay(4000);
+            sCurrent = await evaluate("location.href");
+            while (sCurrent.Contains("/ap/") || sCurrent.ToLower().Contains("signin"))
+            {
+                focusWhenShown("bookFido: log in to Amazon");
+                if (MessageBox.Show("You are not logged in to Amazon yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
+                await navigate(sKindleLibraryUrl);
+                await Task.Delay(4000);
+                sCurrent = await evaluate("location.href");
+            }
+            dSavedByAsin = new Dictionary<string, Dictionary<string, object>>();
+            if (aSavedKindleRows != null)
+            {
+                foreach (object oRow in aSavedKindleRows)
+                {
+                    dSavedRow = oRow as Dictionary<string, object>;
+                    if (dSavedRow != null && dSavedRow.ContainsKey("asin")) dSavedByAsin[Convert.ToString(dSavedRow["asin"])] = dSavedRow;
+                }
+            }
+            dAudibleByKey = new Dictionary<string, Dictionary<string, object>>();
+            foreach (Dictionary<string, object> dAudibleRow in lCatalog)
+            {
+                lock (dAudibleRow)
+                {
+                    lAuthorPairs = catalogLinks(dAudibleRow, "authors");
+                    dAudibleByKey[crossLibraryKey(catalogValue(dAudibleRow, "title"), lAuthorPairs.Count > 0 ? lAuthorPairs[0][0] : "")] = dAudibleRow;
+                }
+            }
+            sToken = "";
+            iBatch = 0;
+            while (true)
+            {
+                iBatch = iBatch + 1;
+                if (iBatch > 400) { log("The Kindle harvest stopped at the safety cap of 400 batches"); break; }
+                sScript = "(async function () { try { var oResponse = await fetch(\"" + sKindleSearchUrl + (sToken == "" ? "" : "&paginationToken=" + sToken) + "\", { credentials: \"include\" }); if (!oResponse.ok) return \"HTTPERROR \" + oResponse.status; return await oResponse.text(); } catch (oError) { return \"FETCHERROR \" + oError; } })()";
+                sJson = await evaluate(sScript);
+                if (sJson.StartsWith("HTTPERROR 401") || sJson.StartsWith("HTTPERROR 403") || (sJson == "" && iBatch == 1 && await loginFormShowing()))
+                {
+                    // Amazon sometimes serves the library shell without a
+                    // redirect and only the data fetch reveals the missing
+                    // login, so an authorization failure asks for one.
+                    focusWhenShown("bookFido: log in to Amazon");
+                    if (MessageBox.Show("Amazon has not accepted the session as logged in.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
+                    await navigate(sKindleLibraryUrl);
+                    await Task.Delay(4000);
+                    iBatch = iBatch - 1;
+                    continue;
+                }
+                if (sJson == "" || sJson.StartsWith("HTTPERROR") || sJson.StartsWith("FETCHERROR"))
+                {
+                    log("The Kindle library endpoint did not answer as expected: " + (sJson == "" ? "empty reply" : sJson));
+                    showTimedMessageBox("The Kindle library could not be gathered this run");
+                    return;
+                }
+                dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+                if (!dReply.ContainsKey("itemsList") || dReply["itemsList"] == null)
+                {
+                    log("The Kindle library reply held no itemsList, so the harvest stopped: " + (sJson.Length > 300 ? sJson.Substring(0, 300) : sJson));
+                    showTimedMessageBox("The Kindle library could not be gathered this run");
+                    return;
+                }
+                foreach (object oItem in (IEnumerable) dReply["itemsList"])
+                {
+                    dItem = oItem as Dictionary<string, object>;
+                    if (dItem == null) continue;
+                    dRow = kindleRowFromItem(dItem, dSavedByAsin);
+                    lKindleCatalog.Add(dRow);
+                    enqueueKindleForEnrichment(dRow, dAudibleByKey);
+                }
+                if (iBatch % 5 == 0) showTimedMessageBox("Kindle library: " + lKindleCatalog.Count + " books so far");
+                sToken = dReply.ContainsKey("paginationToken") && dReply["paginationToken"] != null ? Convert.ToString(dReply["paginationToken"]) : "";
+                if (sToken == "") break;
+                await Task.Delay(400);
+            }
+            bKindleHarvested = true;
+            log("Kindle library harvest complete: " + lKindleCatalog.Count + " books, of which " + countRowsWithKey(lKindleCatalog, "twinAsin") + " share details with the Audible catalog");
+            showTimedMessageBox("Kindle library: " + lKindleCatalog.Count + " books found");
+            savePeriodically(true);
+        }
+        catch (Exception oException)
+        {
+            log("The Kindle library could not be harvested, so the run continues with Audible only: " + oException.Message);
+            showTimedMessageBox("The Kindle library could not be gathered this run");
+        }
+    }
+
+    // Shapes one Kindle library item into a catalog row.  Every scalar field
+    // the endpoint offers is kept under its own name, so nothing the Kindle
+    // user interface knows is dropped; authors are normalized into the same
+    // name-and-url pairs the Audible rows use, and enrichment already saved
+    // for this asin in the state snapshot is carried over.
+    static Dictionary<string, object> kindleRowFromItem(Dictionary<string, object> dItem, Dictionary<string, Dictionary<string, object>> dSavedByAsin)
+    {
+        string sAsin, sName;
+        Dictionary<string, object> dPair, dRow, dSaved;
+        List<object> lAuthors;
+
+        dRow = new Dictionary<string, object>();
+        foreach (KeyValuePair<string, object> oEntry in dItem)
+        {
+            if (oEntry.Value == null || oEntry.Key == "authors") continue;
+            if (oEntry.Value is object[] || oEntry.Value is Dictionary<string, object>) continue;
+            dRow[oEntry.Key] = oEntry.Value;
+        }
+        lAuthors = new List<object>();
+        if (dItem.ContainsKey("authors") && dItem["authors"] != null)
+        {
+            // The endpoint joins all of a book's authors into one string
+            // with colons, sometimes repeating each name, and occasionally
+            // leaking non-name text; each segment is restored to natural
+            // order, duplicates within the book are dropped, and segments
+            // that are plainly not names are discarded.
+            HashSet<string> setSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (object oName in (IEnumerable) dItem["authors"])
+            {
+                foreach (string sPart in Convert.ToString(oName).Split(':'))
+                {
+                    sName = kindleAuthorName(sPart);
+                    if (sName == "" || sName.Length > 50 || sName.Contains("?")) continue;
+                    if (!setSeen.Add(sName)) continue;
+                    dPair = new Dictionary<string, object>();
+                    dPair["name"] = sName;
+                    dPair["url"] = "";
+                    lAuthors.Add(dPair);
+                }
+            }
+        }
+        dRow["authors"] = lAuthors;
+        sAsin = dRow.ContainsKey("asin") ? Convert.ToString(dRow["asin"]) : "";
+        if (sAsin != "" && dSavedByAsin.ContainsKey(sAsin))
+        {
+            dSaved = dSavedByAsin[sAsin];
+            foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle", "openLibraryChecked", "wikipediaChecked" })
+            {
+                if (dSaved.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dSaved[sField];
+            }
+        }
+        return dRow;
+    }
+
+    // The Kindle endpoint reports an author as "Last, First:"; this strips
+    // the trailing colon and restores natural order, leaving names with no
+    // comma or several commas untouched.
+    static string kindleAuthorName(string sRaw)
+    {
+        int iComma;
+        string sName;
+
+        sName = sRaw == null ? "" : sRaw.Trim();
+        while (sName.EndsWith(":")) sName = sName.Substring(0, sName.Length - 1).Trim();
+        iComma = sName.IndexOf(", ");
+        if (iComma > 0 && sName.IndexOf(", ", iComma + 2) < 0) sName = (sName.Substring(iComma + 2) + " " + sName.Substring(0, iComma)).Trim();
+        return sName;
+    }
+
+    // The key that recognizes the same work across the two libraries: the
+    // title with any leading article ignored, joined with the first
+    // author's name, case folded.
+    static string crossLibraryKey(string sTitle, string sAuthor)
+    {
+        int iColon;
+        string sMain;
+
+        sMain = sTitle == null ? "" : sTitle;
+        iColon = sMain.IndexOf(":");
+        if (iColon > 0) sMain = sMain.Substring(0, iColon);
+        return (titleSortKey(sMain.Trim()) + "|" + sAuthor).ToLowerInvariant();
+    }
+
+    // Hands a Kindle row to the Open Library and Wikipedia lanes, unless the
+    // same work already sits in the Audible catalog, in which case the row
+    // is tied to its Audible twin and every gathered detail is copied later
+    // instead of requested again.  Authors dedupe through the same shared
+    // sets the Audible rows use, so a shared author's biography is fetched
+    // once for both libraries.
+    static void enqueueKindleForEnrichment(Dictionary<string, object> dRow, Dictionary<string, Dictionary<string, object>> dAudibleByKey)
+    {
+        string sKey;
+        List<string[]> lAuthorPairs;
+
+        lAuthorPairs = catalogLinks(dRow, "authors");
+        sKey = crossLibraryKey(catalogValue(dRow, "title"), lAuthorPairs.Count > 0 ? lAuthorPairs[0][0] : "");
+        if (dAudibleByKey.ContainsKey(sKey))
+        {
+            dRow["twinAsin"] = catalogValue(dAudibleByKey[sKey], "asin");
+            log("Kindle title matches the Audible catalog, so its gathered details are shared without new requests: " + catalogValue(dRow, "title"));
+        }
+        else
+        {
+            if (!dRow.ContainsKey("openLibraryChecked")) { lock (queueOpenLibrary) { queueOpenLibrary.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
+            if (!dRow.ContainsKey("wikipediaChecked")) { lock (queueWikipedia) { queueWikipedia.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
+        }
+        foreach (string[] aPair in lAuthorPairs)
+        {
+            if (aPair[0] == "" || !setAuthorsQueued.Add(aPair[0])) continue;
+            if (!setAuthorsCheckedWiki.Contains(aPair[0])) { lock (queueAuthorWikipedia) { queueAuthorWikipedia.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
+            if (!setAuthorsCheckedOl.Contains(aPair[0])) { lock (queueAuthorOpenLibrary) { queueAuthorOpenLibrary.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
+        }
+    }
+
+    // After the lanes drain, every Kindle row tied to an Audible twin copies
+    // the twin's gathered details, so shared works read identically in both
+    // catalogs without a single duplicate request.
+    static void resolveKindleTwins()
+    {
+        string sTwinAsin;
+        Dictionary<string, object> dTwin;
+        Dictionary<string, Dictionary<string, object>> dByAsin;
+
+        if (lKindleCatalog.Count == 0) return;
+        dByAsin = new Dictionary<string, Dictionary<string, object>>();
+        foreach (Dictionary<string, object> dAudibleRow in lCatalog)
+        {
+            lock (dAudibleRow) { dByAsin[catalogValue(dAudibleRow, "asin")] = dAudibleRow; }
+        }
+        foreach (Dictionary<string, object> dRow in lKindleCatalog)
+        {
+            if (!dRow.ContainsKey("twinAsin")) continue;
+            sTwinAsin = Convert.ToString(dRow["twinAsin"]);
+            if (!dByAsin.ContainsKey(sTwinAsin)) continue;
+            dTwin = dByAsin[sTwinAsin];
+            lock (dTwin)
+            {
+                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
+                {
+                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
+                }
+            }
+        }
+    }
+
+    // Friendly wording for the endpoint's format and origin codes; an
+    // unrecognized code passes through readably rather than vanishing.
+    static string kindleFormatText(string sCode)
+    {
+        if (sCode == "EBOOK") return "Book";
+        if (sCode == "EBOOK_SAMPLE") return "Sample";
+        return friendlyKindleLabel(sCode);
+    }
+
+    static string kindleOriginText(string sCode)
+    {
+        if (sCode == "PURCHASE") return "Purchased";
+        if (sCode == "KINDLE_UNLIMITED" || sCode == "KU") return "Kindle Unlimited";
+        if (sCode == "PRIME") return "Prime Reading";
+        if (sCode == "COMIXOLOGY_UNLIMITED") return "Comixology Unlimited";
+        if (sCode == "FREE") return "Free";
+        return friendlyKindleLabel(sCode);
+    }
+
+    static string kindleProgressText(Dictionary<string, object> dRow)
+    {
+        int iPercent;
+
+        if (!dRow.ContainsKey("percentageRead")) return "";
+        iPercent = Convert.ToInt32(Convert.ToDouble(dRow["percentageRead"]));
+        if (iPercent <= 0) return "Unread";
+        if (iPercent >= 100) return "Finished";
+        return iPercent + " percent read";
+    }
+
+    // Turns an endpoint field name such as originType or RESOURCE_TYPE into
+    // readable words for a label or a value.
+    static string friendlyKindleLabel(string sName)
+    {
+        int iAt;
+        string sOut;
+        StringBuilder sbOut;
+
+        sOut = sName == null ? "" : sName.Trim();
+        if (sOut == "") return "";
+        if (sOut.Contains("_")) sOut = sOut.Replace("_", " ").ToLowerInvariant();
+        sbOut = new StringBuilder();
+        for (iAt = 0; iAt < sOut.Length; iAt = iAt + 1)
+        {
+            if (iAt > 0 && char.IsUpper(sOut[iAt]) && char.IsLower(sOut[iAt - 1])) sbOut.Append(' ');
+            sbOut.Append(iAt == 0 ? char.ToUpper(sOut[iAt]) : char.ToLower(sOut[iAt]));
+        }
+        return sbOut.ToString();
+    }
+
+    // Builds Kindle_Library.htm and Kindle_Library.md in the download
+    // folder, in the same shape as the Audible catalog: a table of contents
+    // listing every book, an introduction with counts, every book's fields,
+    // and appendixes, ending with the shared About the Authors.
+    // One book's full entry, with every field its library offers, used by
+    // both the library's own document and the consolidated catalog.
+    static void appendKindleEntry(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, object> dRow)
+    {
+        string sAmazonUrl, sAsin, sProgress, sTitle;
+        List<string> lExtraKeys;
+        List<string[]> lPairs;
+
+        Monitor.Enter(dRow);
+        sAsin = catalogValue(dRow, "asin");
+        sTitle = catalogValue(dRow, "title");
+        if (sTitle == "") { Monitor.Exit(dRow); return; }
+        sAmazonUrl = "https://www.amazon.com/dp/" + sAsin;
+        sbHtml.Append("<h2 id=\"" + sAsin + "\"><a href=\"" + htmlText(sAmazonUrl) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
+        sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + sAmazonUrl + ") {#" + sAsin.ToLower() + "}\r\n\r\n");
+        lPairs = catalogLinks(dRow, "authors");
+        appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Edition", htmlText(editionText(dRow, "Kindle")), editionText(dRow, "Kindle"));
+        appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
+        appendField(sbHtml, sbMd, "Format", htmlText(kindleFormatText(catalogValue(dRow, "resourceType"))), kindleFormatText(catalogValue(dRow, "resourceType")));
+        appendField(sbHtml, sbMd, "Origin", htmlText(kindleOriginText(catalogValue(dRow, "originType"))), kindleOriginText(catalogValue(dRow, "originType")));
+        sProgress = kindleProgressText(dRow);
+        appendField(sbHtml, sbMd, "Progress", htmlText(sProgress), sProgress);
+        appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
+        appendField(sbHtml, sbMd, "Read online", catalogValue(dRow, "webReaderUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "webReaderUrl")) + "\">Kindle Cloud Reader</a>", catalogValue(dRow, "webReaderUrl") == "" ? "" : "[Kindle Cloud Reader](" + catalogValue(dRow, "webReaderUrl") + ")");
+        appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
+        lExtraKeys = new List<string>();
+        foreach (KeyValuePair<string, object> oEntry in dRow)
+        {
+            if (oEntry.Value == null || oEntry.Value is List<object> || oEntry.Value is object[] || oEntry.Value is Dictionary<string, object>) continue;
+            if ("|asin|title|authors|percentageRead|resourceType|originType|productUrl|webReaderUrl|firstPublished|publisher|wikipediaUrl|wikipediaTitle|openLibraryChecked|wikipediaChecked|twinAsin|".Contains("|" + oEntry.Key + "|")) continue;
+            lExtraKeys.Add(oEntry.Key);
+        }
+        lExtraKeys.Sort(StringComparer.OrdinalIgnoreCase);
+        foreach (string sExtraKey in lExtraKeys)
+        {
+            appendField(sbHtml, sbMd, friendlyKindleLabel(sExtraKey), htmlText(Convert.ToString(dRow[sExtraKey])), Convert.ToString(dRow[sExtraKey]));
+        }
+        Monitor.Exit(dRow);
+    }
+
+    static void buildKindleFiles(string sDownloadDir)
+    {
+        int iFinishedCount, iSampleCount;
+        string sAmazonUrl, sAsin, sIntroText, sProgress, sStats, sTitle;
+        Dictionary<string, List<string[]>> dByAuthor, dByOrigin, dByProgress, dByPublisher;
+        List<Dictionary<string, object>> lOrdered;
+        List<string> lExtraKeys;
+        List<string[]> lPairs;
+        StringBuilder sbHtml, sbMd;
+
+        dByAuthor = new Dictionary<string, List<string[]>>();
+        dByOrigin = new Dictionary<string, List<string[]>>();
+        dByProgress = new Dictionary<string, List<string[]>>();
+        dByPublisher = new Dictionary<string, List<string[]>>();
+        sbHtml = new StringBuilder();
+        sbMd = new StringBuilder();
+        iFinishedCount = 0;
+        iSampleCount = 0;
+        lOrdered = new List<Dictionary<string, object>>(lKindleCatalog);
+        lOrdered.Sort(compareCatalogRowsByTitle);
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow)
+            {
+                sAsin = catalogValue(dRow, "asin");
+                sTitle = catalogValue(dRow, "title");
+                foreach (string[] aPair in catalogLinks(dRow, "authors")) addToIndex(dByAuthor, aPair[0], sTitle, sAsin);
+                addToIndex(dByOrigin, kindleOriginText(catalogValue(dRow, "originType")), sTitle, sAsin);
+                sProgress = kindleProgressText(dRow);
+                addToIndex(dByProgress, sProgress == "" ? "Unknown" : (sProgress == "Unread" || sProgress == "Finished" ? sProgress : "In progress"), sTitle, sAsin);
+                if (catalogValue(dRow, "publisher") != "") addToIndex(dByPublisher, catalogValue(dRow, "publisher"), sTitle, sAsin);
+                if (sProgress == "Finished") iFinishedCount = iFinishedCount + 1;
+                if (catalogValue(dRow, "resourceType") == "EBOOK_SAMPLE") iSampleCount = iSampleCount + 1;
+            }
+        }
+        sIntroText = "This catalog lists every Kindle book on the Amazon account, gathered from the Kindle library service with every field its own user interface offers, and enriched from Open Library and Wikipedia.  A book that also exists in the Audible library shares the details already gathered there.";
+        sStats = "The library holds " + lKindleCatalog.Count + (lKindleCatalog.Count == 1 ? " book" : " books") + (iSampleCount > 0 ? ", of which " + iSampleCount + (iSampleCount == 1 ? " is a sample" : " are samples") : "") + ", by " + dByAuthor.Count + (dByAuthor.Count == 1 ? " author" : " authors") + ", with " + iFinishedCount + " finished.";
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>Kindle Library</title>\r\n</head>\r\n<body>\r\n");
+        sbHtml.Append("<h1>Kindle Library</h1>\r\n");
+        sbHtml.Append("<nav aria-label=\"Table of contents\">\r\n<h2 id=\"contents\">Contents</h2>\r\n<ul>\r\n");
+        sbHtml.Append("<li><a href=\"#introduction\">Introduction</a></li>\r\n<li><a href=\"#books\">Books</a>\r\n<ul>\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbHtml.Append("<li><a href=\"#" + catalogValue(dRow, "asin") + "\">" + htmlText(titleWithYear(dRow)) + "</a></li>\r\n"); }
+        }
+        sbHtml.Append("</ul>\r\n</li>\r\n");
+        sbHtml.Append("<li><a href=\"#appendix-a\">Appendix A: Books by Author</a></li>\r\n<li><a href=\"#appendix-b\">Appendix B: Books by Origin</a></li>\r\n<li><a href=\"#appendix-c\">Appendix C: Books by Reading Progress</a></li>\r\n<li><a href=\"#appendix-d\">Appendix D: Books by Publisher</a></li>\r\n<li><a href=\"#appendix-e\">Appendix E: About the Authors</a></li>\r\n");
+        sbHtml.Append("</ul>\r\n</nav>\r\n");
+        sbMd.Append("# Kindle Library\r\n\r\n## Contents {#contents}\r\n\r\n");
+        sbMd.Append("- [Introduction](#introduction)\r\n- [Books](#books)\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbMd.Append("    - [" + mdText(titleWithYear(dRow)) + "](#" + catalogValue(dRow, "asin").ToLower() + ")\r\n"); }
+        }
+        sbMd.Append("- [Appendix A: Books by Author](#appendix-a)\r\n- [Appendix B: Books by Origin](#appendix-b)\r\n- [Appendix C: Books by Reading Progress](#appendix-c)\r\n- [Appendix D: Books by Publisher](#appendix-d)\r\n- [Appendix E: About the Authors](#appendix-e)\r\n\r\n");
+        sbHtml.Append("<h2 id=\"introduction\">Introduction</h2>\r\n<p>" + htmlText(sIntroText) + "</p>\r\n<p>" + htmlText(sStats) + "</p>\r\n");
+        sbMd.Append("## Introduction {#introduction}\r\n\r\n" + sIntroText + "\r\n\r\n" + sStats + "\r\n\r\n");
+        sbHtml.Append("<h2 id=\"books\">Books</h2>\r\n");
+        sbMd.Append("## Books {#books}\r\n\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered) appendKindleEntry(sbHtml, sbMd, dRow);
+        appendAppendix(sbHtml, sbMd, "appendix-a", "Appendix A: Books by Author", dByAuthor, true);
+        appendAppendix(sbHtml, sbMd, "appendix-b", "Appendix B: Books by Origin", dByOrigin);
+        appendAppendix(sbHtml, sbMd, "appendix-c", "Appendix C: Books by Reading Progress", dByProgress);
+        appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
+        appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the Kindle library, with the number of books they account for, and a biography when a reliable one was found.");
+        sbHtml.Append("</body>\r\n</html>\r\n");
+        File.WriteAllText(Path.Combine(sDownloadDir, "Kindle_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(sDownloadDir, "Kindle_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        log("The Kindle catalog was saved as Kindle_Library.htm and Kindle_Library.md in " + sDownloadDir);
+    }
+
+    // Writes Kindle_Library.xlsx with the same screen-reader conventions as
+    // the Audible spreadsheet: one region at A1, bold unique headers, the
+    // ColumnTitle01 workbook name, capped widths, a frozen top row, and
+    // truly empty cells for unknowns.
+    static void fillKindleSheet(ExcelPackage oPackage)
+    {
+        int iCol, iRow, iWidth;
+        int[] aWidths;
+        string[] aHeaders;
+        List<Dictionary<string, object>> lSorted;
+        List<string[]> lPairs;
+
+        aHeaders = new string[] { "Title", "ASIN", "Amazon link", "By", "First published", "Format", "Origin", "Percent read", "Progress", "Publisher", "Read online", "Wikipedia" };
+        lSorted = new List<Dictionary<string, object>>(lKindleCatalog);
+        lSorted.Sort(compareCatalogRowsByTitle);
+        ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("Kindle");
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
+        oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
+        iRow = 1;
+        foreach (Dictionary<string, object> dRow in lSorted)
+        {
+            iRow = iRow + 1;
+            Monitor.Enter(dRow);
+            oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
+            oSheet.Cells[iRow, 2].Value = catalogValue(dRow, "asin");
+            oSheet.Cells[iRow, 3].Value = "https://www.amazon.com/dp/" + catalogValue(dRow, "asin");
+            lPairs = catalogLinks(dRow, "authors");
+            oSheet.Cells[iRow, 4].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 5].Value = catalogValue(dRow, "firstPublished");
+            oSheet.Cells[iRow, 6].Value = kindleFormatText(catalogValue(dRow, "resourceType"));
+            oSheet.Cells[iRow, 7].Value = kindleOriginText(catalogValue(dRow, "originType"));
+            if (dRow.ContainsKey("percentageRead")) oSheet.Cells[iRow, 8].Value = Convert.ToInt32(Convert.ToDouble(dRow["percentageRead"]));
+            oSheet.Cells[iRow, 9].Value = kindleProgressText(dRow);
+            oSheet.Cells[iRow, 10].Value = catalogValue(dRow, "publisher");
+            oSheet.Cells[iRow, 11].Value = catalogValue(dRow, "webReaderUrl");
+            oSheet.Cells[iRow, 12].Value = catalogValue(dRow, "wikipediaUrl");
+            Monitor.Exit(dRow);
+        }
+        aWidths = new int[aHeaders.Length];
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
+        {
+            aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
+            for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
+            {
+                iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
+                if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
+            }
+            if (aWidths[iCol - 1] > 40)
+            {
+                aWidths[iCol - 1] = 40;
+                oSheet.Column(iCol).Style.WrapText = true;
+            }
+            oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
+        }
+        oSheet.View.FreezePanes(2, 1);
+        oSheet.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
+    }
+
+    // Builds bookFido.htm and bookFido.md: one consolidated catalog of every
+    // library together, with an introduction, a table of contents naming
+    // each entry's library, and a body where every book's entry lists the
+    // fields its own library offers, including the Edition field.  There
+    // are no appendixes, by design, because of the catalog's size.
+    static void buildConsolidatedFiles(string sDownloadDir)
+    {
+        string sAnchor, sIntroText, sLibrary, sStats;
+        Dictionary<string, object> dInner;
+        List<Dictionary<string, object>> lEntries;
+        StringBuilder sbHtml, sbMd;
+
+        lEntries = new List<Dictionary<string, object>>();
+        foreach (Dictionary<string, object> dRow in lCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Audible"; lEntries.Add(dInner); }
+        foreach (Dictionary<string, object> dRow in lKindleCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Kindle"; lEntries.Add(dInner); }
+        foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Goodreads"; lEntries.Add(dInner); }
+        foreach (Dictionary<string, object> dRow in lBookshareCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Bookshare"; lEntries.Add(dInner); }
+        if (lEntries.Count == 0) return;
+        lEntries.Sort(delegate(Dictionary<string, object> dA, Dictionary<string, object> dB) { return compareCatalogRowsByTitle((Dictionary<string, object>) dA["row"], (Dictionary<string, object>) dB["row"]); });
+        sIntroText = "This is the consolidated bookFido catalog: every book from every library together, in order by title.  Each entry lists the fields its own library offers, and an Edition field tells whether the book is Kindle, Audible, Print, EPUB, or Generic.  A book owned in more than one library appears once for each, so the same title may follow itself in a different edition.  There are no appendixes here; each library's own catalog document carries those.";
+        sStats = "The libraries hold " + lEntries.Count + " entries together: Audible " + lCatalog.Count + ", Kindle " + lKindleCatalog.Count + ", Goodreads " + lGoodreadsCatalog.Count + ", and Bookshare " + lBookshareCatalog.Count + ".";
+        sbHtml = new StringBuilder();
+        sbMd = new StringBuilder();
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>bookFido Catalog</title>\r\n</head>\r\n<body>\r\n");
+        sbHtml.Append("<h1>bookFido Catalog</h1>\r\n");
+        sbHtml.Append("<nav aria-label=\"Table of contents\">\r\n<h2 id=\"contents\">Contents</h2>\r\n<ul>\r\n");
+        sbHtml.Append("<li><a href=\"#introduction\">Introduction</a></li>\r\n<li><a href=\"#books\">Books</a>\r\n<ul>\r\n");
+        foreach (Dictionary<string, object> dEntry in lEntries)
+        {
+            sLibrary = Convert.ToString(dEntry["lib"]);
+            sAnchor = entryAnchor((Dictionary<string, object>) dEntry["row"], sLibrary);
+            lock ((Dictionary<string, object>) dEntry["row"]) { sbHtml.Append("<li><a href=\"#" + sAnchor + "\">" + htmlText(titleWithYear((Dictionary<string, object>) dEntry["row"])) + ", " + sLibrary + "</a></li>\r\n"); }
+        }
+        sbHtml.Append("</ul>\r\n</li>\r\n</ul>\r\n</nav>\r\n");
+        sbMd.Append("# bookFido Catalog\r\n\r\n## Contents {#contents}\r\n\r\n");
+        sbMd.Append("- [Introduction](#introduction)\r\n- [Books](#books)\r\n");
+        foreach (Dictionary<string, object> dEntry in lEntries)
+        {
+            sLibrary = Convert.ToString(dEntry["lib"]);
+            sAnchor = entryAnchor((Dictionary<string, object>) dEntry["row"], sLibrary);
+            lock ((Dictionary<string, object>) dEntry["row"]) { sbMd.Append("    - [" + mdText(titleWithYear((Dictionary<string, object>) dEntry["row"])) + ", " + sLibrary + "](#" + sAnchor.ToLower() + ")\r\n"); }
+        }
+        sbMd.Append("\r\n");
+        sbHtml.Append("<h2 id=\"introduction\">Introduction</h2>\r\n<p>" + htmlText(sIntroText) + "</p>\r\n<p>" + htmlText(sStats) + "</p>\r\n");
+        sbMd.Append("## Introduction {#introduction}\r\n\r\n" + sIntroText + "\r\n\r\n" + sStats + "\r\n\r\n");
+        sbHtml.Append("<h2 id=\"books\">Books</h2>\r\n");
+        sbMd.Append("## Books {#books}\r\n\r\n");
+        foreach (Dictionary<string, object> dEntry in lEntries)
+        {
+            sLibrary = Convert.ToString(dEntry["lib"]);
+            if (sLibrary == "Audible") appendAudibleEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
+            if (sLibrary == "Kindle") appendKindleEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
+            if (sLibrary == "Goodreads") appendGoodreadsEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
+            if (sLibrary == "Bookshare") appendBookshareEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
+        }
+        sbHtml.Append("</body>\r\n</html>\r\n");
+        File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.htm"), sbHtml.ToString(), new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.md"), sbMd.ToString(), new UTF8Encoding(true));
+        log("The consolidated catalog was saved as bookFido.htm and bookFido.md in " + sDownloadDir + ": " + lEntries.Count + " entries");
+    }
+
+    // The anchor an entry's own renderer gives it, per library.
+    static string entryAnchor(Dictionary<string, object> dRow, string sLibrary)
+    {
+        if (sLibrary == "Goodreads") return "gr" + Convert.ToString(dRow["grId"]);
+        if (sLibrary == "Bookshare") return "bs" + Convert.ToString(dRow["bsId"]);
+        return catalogValue(dRow, "asin");
+    }
+
+    // The opening dialog, built with the Homer Lbc primitives: the
+    // explanation in a read-only memo, one checkbox per library in
+    // alphabetical order, all checked to begin with, and OK and Cancel.
+    static bool showOpeningDialog(string sIntroText)
+    {
+        bool bOk;
+        CheckBox checkAudible, checkBookshare, checkGoodreads, checkKindle;
+        TextBox textIntro;
+
+        using (LbcDialog dialogOpen = new LbcDialog("Welcome to bookFido", null))
+        {
+            textIntro = dialogOpen.addMemo(sIntroText, "What bookFido does, and what to expect");
+            textIntro.ReadOnly = true;
+            checkAudible = dialogOpen.addCheckBox("Search &Audible", true, "The Audible library walk, companion PDF files, and catalog");
+            checkBookshare = dialogOpen.addCheckBox("Search &Bookshare", true, "The Bookshare My History list");
+            checkGoodreads = dialogOpen.addCheckBox("Search &Goodreads", true, "The Goodreads My Books shelves");
+            checkKindle = dialogOpen.addCheckBox("Search &Kindle", true, "The Kindle library on the Amazon account");
+            bOk = dialogOpen.runOkCancel();
+            if (!bOk) return false;
+            bSearchAudible = checkAudible.Checked;
+            bSearchBookshare = checkBookshare.Checked;
+            bSearchGoodreads = checkGoodreads.Checked;
+            bSearchKindle = checkKindle.Checked;
+        }
+        if (!bSearchAudible && !bSearchBookshare && !bSearchGoodreads && !bSearchKindle)
+        {
+            log("No library was checked, so there is nothing to search");
+            MessageBox.Show("No library was checked, so there is nothing to search.", "bookFido", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
+        }
+        return true;
+    }
+
     // Gives a plain message box the same focus treatment as the timed
     // announcements: a helper thread polls for the box by its caption and
     // forces it to the foreground, so the screen reader announces it even

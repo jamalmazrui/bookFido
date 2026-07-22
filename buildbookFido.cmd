@@ -154,11 +154,22 @@ rem ---- Compile --------------------------------------------------------
 if exist bookFido.exe del bookFido.exe
 set "sIcon="
 if exist "bookFido.ico" set "sIcon=/win32icon:bookFido.ico"
-"%sCsc%" /nologo %sIcon% /target:winexe /platform:x64 /optimize+ /out:bookFido.exe /reference:System.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.Windows.Forms.dll /reference:"%sNetstd%" %sExtra% bookFido.cs
+"%sCsc%" /nologo %sIcon% /target:winexe /platform:x64 /optimize+ /out:bookFido.exe /reference:System.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.Windows.Forms.dll /reference:System.Data.dll /reference:System.Drawing.dll /reference:System.Xml.dll /reference:"C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationProvider.dll" /reference:"C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationTypes.dll" /reference:"%sNetstd%" %sExtra% bookFido.cs Lbc.cs Say.cs
 if not exist bookFido.exe (
     echo [ERROR] Build failed.
     exit /b 1
 )
 echo [INFO] Built bookFido.exe successfully as a single-file exe with PdfPig and EPPlus embedded.
+
+rem ---- Installer documentation check ----------------------------------
+rem bookFido_setup.iss packages ReadMe.htm and License.htm, so the Inno
+rem Setup compile fails if either is absent.  ReadMe.htm should track
+rem README.md; regenerate it with 2htm after editing the README.
+if not exist License.htm echo [WARN] License.htm is missing; bookFido_setup.iss will not compile without it.
+if not exist ReadMe.htm (
+    echo [WARN] ReadMe.htm is missing; produce it from README.md with 2htm, or bookFido_setup.iss will not compile.
+) else (
+    powershell -NoProfile -Command "if ((Get-Item 'README.md').LastWriteTime -gt (Get-Item 'ReadMe.htm').LastWriteTime) { Write-Output '[WARN] ReadMe.htm is older than README.md; regenerate it with 2htm before compiling the installer.' }"
+)
 echo [INFO] Build finished %date% %time%
 endlocal

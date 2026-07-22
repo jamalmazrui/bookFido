@@ -36,7 +36,12 @@
 ; =====================================================================
 
 #define sAppName       "bookFido"
-#define sAppVersion    "1.1.0"
+; The version comes from version.txt, the single source of truth that
+; buildbookFido.cmd increments before every compile; this file holds no
+; version literal, so an old copy of it cannot rewind the number.
+#define VersionFile FileOpen(SourcePath + "\version.txt")
+#define sAppVersion Trim(FileRead(VersionFile))
+#expr FileClose(VersionFile)
 #define sAppPublisher  "Jamal Mazrui"
 #define sAppUrl        "https://github.com/jamalmazrui/bookFido"
 #define sAppExeName    "bookFido.exe"

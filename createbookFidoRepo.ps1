@@ -58,6 +58,7 @@ if (-not (Test-Path ".gitignore")) {
         "bookFido_fail_*.html",
         "GetAudibleInfo_fail_*.html",
         "nugetPins.txt",
+        "Version.cs",
         "*.dll",
         "tagRelease.cmd",
         "tagRelease.ps1",

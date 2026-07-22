@@ -119,7 +119,7 @@ class bookFido
 {
     // Constant definitions
     const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 15000, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
-    const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = "43", sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
+    const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = BuildVersion.Version, sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
     const uint iMbOk = 0x00000000, iMbSetForeground = 0x00010000, iMbTopmost = 0x00040000;
 
     // Static variable definitions
@@ -146,6 +146,7 @@ class bookFido
     static bool bSearchAudible = true, bSearchBookshare = true, bSearchGoodreads = true, bSearchKindle = true;
     static bool[] aLaneSkipping = new bool[3];
     static volatile string sProgressText = "";
+    static string sConsolidatedHtmPath = "";
     static volatile bool bStopLanes = false;
     static DateTime dtLastDocumentsSave = DateTime.MinValue, dtLastStateSave = DateTime.MinValue, dtRunStart = DateTime.Now;
     static volatile bool bWalkComplete = false;
@@ -458,20 +459,21 @@ class bookFido
         }
         bWalkComplete = bSearchAudible ? true : bSavedWalkComplete;
         if (bSearchAudible) sweepCompanions(sCookieHeader, sDownloadDir);
-        if (!bSearchKindle) materializeSavedRows(aSavedKindleRows, lKindleCatalog);
-        if (bSearchKindle) await harvestKindleAsync();
-        if (!bSearchGoodreads) materializeSavedRows(aSavedGoodreadsRows, lGoodreadsCatalog);
-        if (bSearchGoodreads) await harvestGoodreadsAsync();
+        // The libraries are processed in alphabetical order; a library left
+        // unchecked is filled from the saved state first, so its books can
+        // still be matched by any library processed after it.
         if (!bSearchBookshare) materializeSavedRows(aSavedBookshareRows, lBookshareCatalog);
+        if (!bSearchGoodreads) materializeSavedRows(aSavedGoodreadsRows, lGoodreadsCatalog);
+        if (!bSearchKindle) materializeSavedRows(aSavedKindleRows, lKindleCatalog);
         if (bSearchBookshare) await harvestBookshareAsync();
+        if (bSearchGoodreads) await harvestGoodreadsAsync();
+        if (bSearchKindle) await harvestKindleAsync();
         waitForEnrichment();
         saveState();
         sLibraryHtmPath = lCatalog.Count > 0 ? buildLibraryFiles(sDownloadDir) : "";
         try { writeWorkbook(sDownloadDir); }
         catch (Exception oException) { log("The spreadsheet workbook could not be written: " + oException.Message); }
-        resolveKindleTwins();
-        resolveGoodreadsTwins();
-        resolveBookshareTwins();
+        resolveTwins();
         if (lKindleCatalog.Count > 0)
         {
             try { buildKindleFiles(sDownloadDir); }
@@ -487,8 +489,9 @@ class bookFido
             try { buildBookshareFiles(sDownloadDir); }
             catch (Exception oException) { log("The Bookshare catalog documents could not be written: " + oException.Message); }
         }
-        try { buildConsolidatedFiles(sDownloadDir); }
+        try { sConsolidatedHtmPath = buildConsolidatedFiles(sDownloadDir); }
         catch (Exception oException) { log("The consolidated catalog could not be written: " + oException.Message); }
+        if (sConsolidatedHtmPath != "") sLibraryHtmPath = sConsolidatedHtmPath;
         log("HTML versions of PDFs created this run: " + iHtmCount);
         sSummary = "Downloaded " + lDownloaded.Count + ", skipped " + lSkipped.Count + ", failed " + lFailed.Count + (setDeadCompanions.Count > lFailed.Count ? " (" + setDeadCompanions.Count + " companions are known to be permanently unavailable from Audible)" : "") + ", with " + iHtmCount + " HTML versions of PDFs created and " + lCatalog.Count + " titles cataloged.  " +
             (lFailed.Count > 0 ? "The failed companions are remembered as unavailable and will not be retried on future runs.  " : "") +
@@ -497,7 +500,7 @@ class bookFido
             (lGoodreadsCatalog.Count > 0 ? "Goodreads library: " + lGoodreadsCatalog.Count + " books cataloged as Goodreads_Library.htm and Goodreads_Library.md.  " : "") +
             (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
             "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
-            "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the catalog will open in your web browser when you choose OK.  See bookFido.log for details.";
+            "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  See bookFido.log for details.";
         log(sSummary);
         writeSummarySections();
         // Edge is closed before the results box appears, so the box faces no
@@ -3679,7 +3682,7 @@ class bookFido
                     if (dRow == null) continue;
                     dSeenById[Convert.ToString(dItem["id"])] = dRow;
                     lBookshareCatalog.Add(dRow);
-                    enqueueGoodreadsForEnrichment(dRow, dByKey);
+                    enqueueSharedEnrichment(dRow, dByKey);
                 }
                 if (sFirstId == "" || sFirstId == sPreviousFirstId) break;
                 sPreviousFirstId = sFirstId;
@@ -3790,28 +3793,6 @@ class bookFido
     }
 
     // After the lanes drain, every Bookshare row tied to a twin copies the
-    // twin's gathered details, whichever library the twin lives in.
-    static void resolveBookshareTwins()
-    {
-        Dictionary<string, object> dTwin;
-        Dictionary<string, Dictionary<string, object>> dByKey;
-
-        if (lBookshareCatalog.Count == 0) return;
-        dByKey = crossLibraryMap();
-        foreach (Dictionary<string, object> dRow in lBookshareCatalog)
-        {
-            if (!dRow.ContainsKey("twinKey") || !dByKey.ContainsKey(Convert.ToString(dRow["twinKey"]))) continue;
-            dTwin = dByKey[Convert.ToString(dRow["twinKey"])];
-            lock (dTwin)
-            {
-                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
-                {
-                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
-                }
-            }
-        }
-    }
-
     // Builds Bookshare_Library.htm and Bookshare_Library.md in the download
     // folder, in the family shape: a table of contents, an introduction
     // with counts, every book's fields under Bookshare's own labels plus
@@ -4057,7 +4038,7 @@ class bookFido
                     dRow = goodreadsRowFromItem(dItem, dSavedById);
                     if (dRow == null) continue;
                     lGoodreadsCatalog.Add(dRow);
-                    enqueueGoodreadsForEnrichment(dRow, dByKey);
+                    enqueueSharedEnrichment(dRow, dByKey);
                 }
                 if (iTotal > 0) sProgressText = (lGoodreadsCatalog.Count * 100 / iTotal) + "%";
                 if (iPage % 3 == 0) showTimedMessageBox("Goodreads library: " + lGoodreadsCatalog.Count + " books so far");
@@ -4174,39 +4155,87 @@ class bookFido
     // Audible row preferred when both hold the same work.
     static Dictionary<string, Dictionary<string, object>> crossLibraryMap()
     {
-        string sKey;
         Dictionary<string, Dictionary<string, object>> dByKey;
-        List<string[]> lPairs;
 
         dByKey = new Dictionary<string, Dictionary<string, object>>();
-        foreach (Dictionary<string, object> dRow in lCatalog)
-        {
-            lock (dRow)
-            {
-                lPairs = catalogLinks(dRow, "authors");
-                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
-                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
-            }
-        }
-        foreach (Dictionary<string, object> dRow in lKindleCatalog)
-        {
-            lock (dRow)
-            {
-                lPairs = catalogLinks(dRow, "authors");
-                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
-                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
-            }
-        }
-        foreach (Dictionary<string, object> dRow in lGoodreadsCatalog)
-        {
-            lock (dRow)
-            {
-                lPairs = catalogLinks(dRow, "authors");
-                sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
-                if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
-            }
-        }
+        addRowsToKeyMap(dByKey, lCatalog, aSavedRows);
+        addRowsToKeyMap(dByKey, lKindleCatalog, aSavedKindleRows);
+        addRowsToKeyMap(dByKey, lGoodreadsCatalog, aSavedGoodreadsRows);
+        addRowsToKeyMap(dByKey, lBookshareCatalog, aSavedBookshareRows);
         return dByKey;
+    }
+
+    // Adds one library's rows to the twin map: the live catalog when it has
+    // been filled, otherwise the saved rows from the state snapshot, so a
+    // library processed later, or not at all this run, still lends its
+    // gathered details to the others.
+    static void addRowsToKeyMap(Dictionary<string, Dictionary<string, object>> dByKey, List<Dictionary<string, object>> lLive, object[] aSaved)
+    {
+        string sKey;
+        Dictionary<string, object> dRow;
+        List<string[]> lPairs;
+
+        if (lLive.Count > 0)
+        {
+            foreach (Dictionary<string, object> dLiveRow in lLive)
+            {
+                lock (dLiveRow)
+                {
+                    lPairs = catalogLinks(dLiveRow, "authors");
+                    sKey = crossLibraryKey(catalogValue(dLiveRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+                    if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dLiveRow;
+                }
+            }
+            return;
+        }
+        if (aSaved == null) return;
+        foreach (object oRow in aSaved)
+        {
+            dRow = oRow as Dictionary<string, object>;
+            if (dRow == null) continue;
+            lPairs = catalogLinks(dRow, "authors");
+            sKey = crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+            if (!dByKey.ContainsKey(sKey)) dByKey[sKey] = dRow;
+        }
+    }
+
+    // After the lanes drain, every row tied to a twin, or matching one by
+    // key, copies the twin's gathered details, whichever library the twin
+    // lives in and whatever order the libraries were processed.
+    static void resolveTwins()
+    {
+        Dictionary<string, Dictionary<string, object>> dByKey;
+
+        dByKey = crossLibraryMap();
+        resolveTwinList(lKindleCatalog, dByKey);
+        resolveTwinList(lGoodreadsCatalog, dByKey);
+        resolveTwinList(lBookshareCatalog, dByKey);
+    }
+
+    static void resolveTwinList(List<Dictionary<string, object>> lRows, Dictionary<string, Dictionary<string, object>> dByKey)
+    {
+        string sKey;
+        Dictionary<string, object> dTwin;
+        List<string[]> lPairs;
+
+        foreach (Dictionary<string, object> dRow in lRows)
+        {
+            lock (dRow)
+            {
+                lPairs = catalogLinks(dRow, "authors");
+                sKey = dRow.ContainsKey("twinKey") ? Convert.ToString(dRow["twinKey"]) : crossLibraryKey(catalogValue(dRow, "title"), lPairs.Count > 0 ? lPairs[0][0] : "");
+            }
+            if (!dByKey.ContainsKey(sKey)) continue;
+            dTwin = dByKey[sKey];
+            if (object.ReferenceEquals(dTwin, dRow)) continue;
+            lock (dTwin)
+            {
+                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
+                {
+                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
+                }
+            }
+        }
     }
 
     // Hands a Goodreads row to the Open Library and Wikipedia lanes, unless
@@ -4214,7 +4243,7 @@ class bookFido
     // case the row is tied by key and every gathered detail is copied after
     // the lanes drain instead of requested again.  Authors dedupe through
     // the shared sets, so no biography is ever fetched twice.
-    static void enqueueGoodreadsForEnrichment(Dictionary<string, object> dRow, Dictionary<string, Dictionary<string, object>> dByKey)
+    static void enqueueSharedEnrichment(Dictionary<string, object> dRow, Dictionary<string, Dictionary<string, object>> dByKey)
     {
         string sKey;
         List<string[]> lAuthorPairs;
@@ -4239,28 +4268,6 @@ class bookFido
     }
 
     // After the lanes drain, every Goodreads row tied to a twin copies the
-    // twin's gathered details, whichever library the twin lives in.
-    static void resolveGoodreadsTwins()
-    {
-        Dictionary<string, object> dTwin;
-        Dictionary<string, Dictionary<string, object>> dByKey;
-
-        if (lGoodreadsCatalog.Count == 0) return;
-        dByKey = crossLibraryMap();
-        foreach (Dictionary<string, object> dRow in lGoodreadsCatalog)
-        {
-            if (!dRow.ContainsKey("twinKey") || !dByKey.ContainsKey(Convert.ToString(dRow["twinKey"]))) continue;
-            dTwin = dByKey[Convert.ToString(dRow["twinKey"])];
-            lock (dTwin)
-            {
-                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
-                {
-                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
-                }
-            }
-        }
-    }
-
     // A named Goodreads column's value, or an empty string.
     static string grField(Dictionary<string, object> dRow, string sLabel)
     {
@@ -4463,8 +4470,7 @@ class bookFido
         int iBatch;
         string sCurrent, sJson, sScript, sToken;
         Dictionary<string, object> dItem, dReply, dRow, dSavedRow;
-        Dictionary<string, Dictionary<string, object>> dAudibleByKey, dSavedByAsin;
-        List<string[]> lAuthorPairs;
+        Dictionary<string, Dictionary<string, object>> dByKey, dSavedByAsin;
 
         try
         {
@@ -4490,15 +4496,7 @@ class bookFido
                     if (dSavedRow != null && dSavedRow.ContainsKey("asin")) dSavedByAsin[Convert.ToString(dSavedRow["asin"])] = dSavedRow;
                 }
             }
-            dAudibleByKey = new Dictionary<string, Dictionary<string, object>>();
-            foreach (Dictionary<string, object> dAudibleRow in lCatalog)
-            {
-                lock (dAudibleRow)
-                {
-                    lAuthorPairs = catalogLinks(dAudibleRow, "authors");
-                    dAudibleByKey[crossLibraryKey(catalogValue(dAudibleRow, "title"), lAuthorPairs.Count > 0 ? lAuthorPairs[0][0] : "")] = dAudibleRow;
-                }
-            }
+            dByKey = crossLibraryMap();
             sToken = "";
             iBatch = 0;
             while (true)
@@ -4538,7 +4536,7 @@ class bookFido
                     if (dItem == null) continue;
                     dRow = kindleRowFromItem(dItem, dSavedByAsin);
                     lKindleCatalog.Add(dRow);
-                    enqueueKindleForEnrichment(dRow, dAudibleByKey);
+                    enqueueSharedEnrichment(dRow, dByKey);
                 }
                 if (iBatch % 5 == 0) showTimedMessageBox("Kindle library: " + lKindleCatalog.Count + " books so far");
                 sToken = dReply.ContainsKey("paginationToken") && dReply["paginationToken"] != null ? Convert.ToString(dReply["paginationToken"]) : "";
@@ -4546,7 +4544,7 @@ class bookFido
                 await Task.Delay(400);
             }
             bKindleHarvested = true;
-            log("Kindle library harvest complete: " + lKindleCatalog.Count + " books, of which " + countRowsWithKey(lKindleCatalog, "twinAsin") + " share details with the Audible catalog");
+            log("Kindle library harvest complete: " + lKindleCatalog.Count + " books, of which " + countRowsWithKey(lKindleCatalog, "twinKey") + " share details with the Audible catalog");
             showTimedMessageBox("Kindle library: " + lKindleCatalog.Count + " books found");
             savePeriodically(true);
         }
@@ -4645,63 +4643,8 @@ class bookFido
     // is tied to its Audible twin and every gathered detail is copied later
     // instead of requested again.  Authors dedupe through the same shared
     // sets the Audible rows use, so a shared author's biography is fetched
-    // once for both libraries.
-    static void enqueueKindleForEnrichment(Dictionary<string, object> dRow, Dictionary<string, Dictionary<string, object>> dAudibleByKey)
-    {
-        string sKey;
-        List<string[]> lAuthorPairs;
-
-        lAuthorPairs = catalogLinks(dRow, "authors");
-        sKey = crossLibraryKey(catalogValue(dRow, "title"), lAuthorPairs.Count > 0 ? lAuthorPairs[0][0] : "");
-        if (dAudibleByKey.ContainsKey(sKey))
-        {
-            dRow["twinAsin"] = catalogValue(dAudibleByKey[sKey], "asin");
-            log("Kindle title matches the Audible catalog, so its gathered details are shared without new requests: " + catalogValue(dRow, "title"));
-        }
-        else
-        {
-            if (!dRow.ContainsKey("openLibraryChecked")) { lock (queueOpenLibrary) { queueOpenLibrary.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
-            if (!dRow.ContainsKey("wikipediaChecked")) { lock (queueWikipedia) { queueWikipedia.Enqueue(dRow); } iWorkTotal = iWorkTotal + 1; }
-        }
-        foreach (string[] aPair in lAuthorPairs)
-        {
-            if (aPair[0] == "" || !setAuthorsQueued.Add(aPair[0])) continue;
-            if (!setAuthorsCheckedWiki.Contains(aPair[0])) { lock (queueAuthorWikipedia) { queueAuthorWikipedia.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
-            if (!setAuthorsCheckedOl.Contains(aPair[0])) { lock (queueAuthorOpenLibrary) { queueAuthorOpenLibrary.Enqueue(aPair[0]); } iWorkTotal = iWorkTotal + 1; }
-        }
-    }
-
     // After the lanes drain, every Kindle row tied to an Audible twin copies
     // the twin's gathered details, so shared works read identically in both
-    // catalogs without a single duplicate request.
-    static void resolveKindleTwins()
-    {
-        string sTwinAsin;
-        Dictionary<string, object> dTwin;
-        Dictionary<string, Dictionary<string, object>> dByAsin;
-
-        if (lKindleCatalog.Count == 0) return;
-        dByAsin = new Dictionary<string, Dictionary<string, object>>();
-        foreach (Dictionary<string, object> dAudibleRow in lCatalog)
-        {
-            lock (dAudibleRow) { dByAsin[catalogValue(dAudibleRow, "asin")] = dAudibleRow; }
-        }
-        foreach (Dictionary<string, object> dRow in lKindleCatalog)
-        {
-            if (!dRow.ContainsKey("twinAsin")) continue;
-            sTwinAsin = Convert.ToString(dRow["twinAsin"]);
-            if (!dByAsin.ContainsKey(sTwinAsin)) continue;
-            dTwin = dByAsin[sTwinAsin];
-            lock (dTwin)
-            {
-                foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle" })
-                {
-                    if (dTwin.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dTwin[sField];
-                }
-            }
-        }
-    }
-
     // Friendly wording for the endpoint's format and origin codes; an
     // unrecognized code passes through readably rather than vanishing.
     static string kindleFormatText(string sCode)
@@ -4931,7 +4874,7 @@ class bookFido
     // each entry's library, and a body where every book's entry lists the
     // fields its own library offers, including the Edition field.  There
     // are no appendixes, by design, because of the catalog's size.
-    static void buildConsolidatedFiles(string sDownloadDir)
+    static string buildConsolidatedFiles(string sDownloadDir)
     {
         string sAnchor, sIntroText, sLibrary, sStats;
         Dictionary<string, object> dInner;
@@ -4943,7 +4886,7 @@ class bookFido
         foreach (Dictionary<string, object> dRow in lKindleCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Kindle"; lEntries.Add(dInner); }
         foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Goodreads"; lEntries.Add(dInner); }
         foreach (Dictionary<string, object> dRow in lBookshareCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Bookshare"; lEntries.Add(dInner); }
-        if (lEntries.Count == 0) return;
+        if (lEntries.Count == 0) return "";
         lEntries.Sort(delegate(Dictionary<string, object> dA, Dictionary<string, object> dB) { return compareCatalogRowsByTitle((Dictionary<string, object>) dA["row"], (Dictionary<string, object>) dB["row"]); });
         sIntroText = "This is the consolidated bookFido catalog: every book from every library together, in order by title.  Each entry lists the fields its own library offers, and an Edition field tells whether the book is Kindle, Audible, Print, EPUB, or Generic.  A book owned in more than one library appears once for each, so the same title may follow itself in a different edition.  There are no appendixes here; each library's own catalog document carries those.";
         sStats = "The libraries hold " + lEntries.Count + " entries together: Audible " + lCatalog.Count + ", Kindle " + lKindleCatalog.Count + ", Goodreads " + lGoodreadsCatalog.Count + ", and Bookshare " + lBookshareCatalog.Count + ".";
@@ -4985,6 +4928,7 @@ class bookFido
         File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.htm"), sbHtml.ToString(), new UTF8Encoding(true));
         File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.md"), sbMd.ToString(), new UTF8Encoding(true));
         log("The consolidated catalog was saved as bookFido.htm and bookFido.md in " + sDownloadDir + ": " + lEntries.Count + " entries");
+        return Path.Combine(sDownloadDir, "bookFido.htm");
     }
 
     // The anchor an entry's own renderer gives it, per library.

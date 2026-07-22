@@ -1,3 +1,4 @@
+bookFido.exe.config
 bookFido.log
 bookFido.json
 buildbookFido.log
@@ -7,6 +8,7 @@ GetAudibleInfo_state.json
 bookFido_fail_*.html
 GetAudibleInfo_fail_*.html
 nugetPins.txt
+Version.cs
 *.dll
 tagRelease.cmd
 tagRelease.ps1

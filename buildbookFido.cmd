@@ -183,12 +183,46 @@ echo [INFO] Assemblies present for embedding:
 dir /b UglyToad.*.dll 2>nul
 dir /b EPPlus.dll Microsoft.Bcl.HashCode.dll System.Buffers.dll System.Text.Encoding.CodePages.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.ValueTuple.dll 2>nul
 
+rem ---- fetch Microsoft's SQLite library on first build ----------------
+rem Microsoft.Data.Sqlite.Core needs no ADO provider and carries one native
+rem piece, e_sqlite3.dll, which is embedded as a plain resource and written
+rem beside the program at run time, so bookFido stays a single file.  The
+rem batteries assembly is included because the library looks for it by name.
+rem Inside the quoted arguments below a pipe is literal, so no escaping.
+if exist "Microsoft.Data.Sqlite.dll" if exist "SQLitePCLRaw.core.dll" if exist "SQLitePCLRaw.provider.e_sqlite3.dll" if exist "SQLitePCLRaw.batteries_v2.dll" if exist "e_sqlite3.dll" goto :have_sqlite
+echo [INFO] Fetching the Microsoft SQLite library from nuget.org ...
+powershell -NoProfile -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "$lSets = @(@('microsoft.data.sqlite.core','8.0.6','Microsoft.Data.Sqlite.dll'), @('sqlitepclraw.core','2.1.8','SQLitePCLRaw.core.dll'), @('sqlitepclraw.provider.e_sqlite3','2.1.8','SQLitePCLRaw.provider.e_sqlite3.dll'), @('sqlitepclraw.bundle_e_sqlite3','2.1.8','SQLitePCLRaw.batteries_v2.dll'), @('sqlitepclraw.lib.e_sqlite3','2.1.8','e_sqlite3.dll'));" ^
+  "foreach ($aSet in $lSets) {" ^
+  "  $sZip = Join-Path $env:TEMP ($aSet[0] + '.nupkg.zip');" ^
+  "  Invoke-WebRequest -Uri ('https://api.nuget.org/v3-flatcontainer/' + $aSet[0] + '/' + $aSet[1] + '/' + $aSet[0] + '.' + $aSet[1] + '.nupkg') -OutFile $sZip;" ^
+  "  $sDir = Join-Path $env:TEMP ($aSet[0] + '_x');" ^
+  "  if (Test-Path $sDir) { Remove-Item -Recurse -Force $sDir };" ^
+  "  Expand-Archive -Path $sZip -DestinationPath $sDir;" ^
+  "  $lFound = Get-ChildItem -Path $sDir -Recurse -Filter $aSet[2];" ^
+  "  $oPick = $lFound | Where-Object { $_.FullName -like '*netstandard2.0*' -or $_.FullName -like '*win-x64*' } | Sort-Object FullName | Select-Object -First 1;" ^
+  "  if (-not $oPick) { $oPick = $lFound | Select-Object -First 1 };" ^
+  "  if (-not $oPick) { throw ($aSet[2] + ' was not found in package ' + $aSet[0]) };" ^
+  "  Copy-Item $oPick.FullName -Destination $aSet[2] -Force;" ^
+  "  Write-Output ('[INFO] ' + $aSet[2] + ' from ' + $oPick.FullName);" ^
+  "}"
+for %%D in (Microsoft.Data.Sqlite.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll SQLitePCLRaw.batteries_v2.dll e_sqlite3.dll) do (
+    if not exist "%%D" (
+        echo [ERROR] %%D could not be fetched.  Internet is needed once.
+        exit /b 1
+    )
+)
+:have_sqlite
+
 rem ---- Assemble the reference and embed switches for each dll present ----
 set "sExtra="
 for %%D in (UglyToad.*.dll) do set "sExtra=!sExtra! /reference:%%D /resource:%%D,%%D"
-for %%D in (EPPlus.dll Microsoft.Bcl.HashCode.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.Text.Encoding.CodePages.dll System.ValueTuple.dll) do (
+for %%D in (EPPlus.dll Microsoft.Bcl.HashCode.dll Microsoft.Data.Sqlite.dll SQLitePCLRaw.batteries_v2.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.Text.Encoding.CodePages.dll System.ValueTuple.dll) do (
     if exist "%%D" set "sExtra=!sExtra! /reference:%%D /resource:%%D,%%D"
 )
+
+if exist "e_sqlite3.dll" set "sExtra=!sExtra! /resource:e_sqlite3.dll,e_sqlite3.dll"
 
 rem ---- Compile --------------------------------------------------------
 if exist bookFido.exe del bookFido.exe

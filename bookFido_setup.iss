@@ -36,7 +36,7 @@
 ; =====================================================================
 
 #define sAppName       "bookFido"
-#define sAppVersion    "1.0.0"
+#define sAppVersion    "1.1.0"
 #define sAppPublisher  "Jamal Mazrui"
 #define sAppUrl        "https://github.com/jamalmazrui/bookFido"
 #define sAppExeName    "bookFido.exe"

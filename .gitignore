@@ -1,0 +1,13 @@
+bookFido.log
+bookFido.json
+buildbookFido.log
+createbookFidoRepo.log
+GetAudibleInfo.json
+GetAudibleInfo_state.json
+bookFido_fail_*.html
+GetAudibleInfo_fail_*.html
+nugetPins.txt
+*.dll
+tagRelease.cmd
+tagRelease.ps1
+tagRelease.log

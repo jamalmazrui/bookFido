@@ -119,7 +119,7 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 class bookFido
 {
     // Constant definitions
-    const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 15000, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
+    const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 8000, iProbeTimeoutMs = 2000, iRenderWaitMs = 20000, iSignInWaitMs = 6000, iTabWaitMs = 4000, iNlsPageSize = 250, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
     const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = BuildVersion.Version, sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
     const uint iMbOk = 0x00000000, iMbSetForeground = 0x00010000, iMbTopmost = 0x00040000;
 
@@ -130,6 +130,7 @@ class bookFido
     static int iNextId = 1;
     static Dictionary<string, string> dFailedTitles = new Dictionary<string, string>(), dPdfNames = new Dictionary<string, string>();
     static HashSet<string> setCatalogAsins = new HashSet<string>();
+    const string sNlsHistoryUrl = "https://nlsbard.loc.gov/bard2-web/reading-history/", sNlsRootUrl = "https://nlsbard.loc.gov/bard2-web/", sNlsLoginUrl = "https://nlsbard.loc.gov/bard2-web/login/", sNlsOrigin = "https://nlsbard.loc.gov";
     const string sKindleLibraryUrl = "https://read.amazon.com/kindle-library", sKindleSearchUrl = "https://read.amazon.com/kindle-library/search?query=&libraryType=BOOKS&sortType=acquisition_desc&querySize=50";
     static bool bKindleHarvested = false;
     static object[] aSavedKindleRows = null;
@@ -137,14 +138,16 @@ class bookFido
     static List<Dictionary<string, object>> lKindleCatalog = new List<Dictionary<string, object>>();
     static List<Dictionary<string, object>> lGoodreadsCatalog = new List<Dictionary<string, object>>();
     static List<Dictionary<string, object>> lBookshareCatalog = new List<Dictionary<string, object>>();
+    static List<Dictionary<string, object>> lNlsCatalog = new List<Dictionary<string, object>>();
     static object[] aSavedGoodreadsRows = null;
     static object[] aSavedBookshareRows = null;
+    static object[] aSavedNlsRows = null;
     static Dictionary<string, string> dAuthorOlBio = new Dictionary<string, string>(), dAuthorWikiBio = new Dictionary<string, string>(), dAuthorWikiUrl = new Dictionary<string, string>();
     static HashSet<string> setAuthorsQueued = new HashSet<string>();
     static int iAudibleDone = 0, iAuthorsDone = 0, iHtmCount = 0, iOpenLibraryDone = 0, iWikipediaDone = 0, iWorkTotal = 0;
     static object oAuthorLock = new object();
     [ThreadStatic] static bool bLastFetchRateLimited;
-    static bool bSearchAudible = true, bSearchBookshare = true, bSearchGoodreads = true, bSearchKindle = true;
+    static bool bSearchAudible = true, bSearchBookshare = true, bSearchGoodreads = true, bSearchKindle = true, bSearchNls = true;
     static bool[] aLaneSkipping = new bool[3];
     static volatile string sProgressText = "";
     static string sConsolidatedHtmPath = "";
@@ -265,7 +268,7 @@ class bookFido
         jsonCodec.MaxJsonLength = 50000000;
         sIntro = "This is bookFido version " + sVersionText + ".  bookFido visits every page of your Audible library and gathers what it finds there.  " +
             "It downloads the companion PDF files that publishers attach to audiobooks, naming each by its book title, creates a screen-reader-friendly .htm version of every PDF, and it builds an accessible catalog of your whole library, " +
-            "with a heading for every title, its details enriched from Audible's catalog service, Open Library, and Wikipedia (this gathering step takes a few minutes for a large library), and appendixes indexed by author, narrator, series, publisher, rating, and more, saved as Audible_Library.htm and Audible_Library.md in your Downloads folder, with a sortable spreadsheet for every library as its own sheet of one bookFido.xlsx workbook.  Kindle books on the same Amazon account, the Goodreads My Books shelves, and the Bookshare My History list are cataloged alongside, as Kindle_Library, Goodreads_Library, and Bookshare_Library files, and a title present in more than one library shares its gathered details without extra requests.  " +
+            "with a heading for every title, its details enriched from Audible's catalog service, Open Library, and Wikipedia (this gathering step takes a few minutes for a large library), and appendixes indexed by author, narrator, series, publisher, rating, and more, saved as Audible_Library.htm and Audible_Library.md in your Downloads folder, with a sortable spreadsheet for every library as its own sheet of one bookFido.xlsx workbook.  Kindle books on the same Amazon account, the Goodreads My Books shelves, the Bookshare My History list, and the NLS reading history from BARD are cataloged alongside, as Kindle_Library, Goodreads_Library, Bookshare_Library, and NLS_Library files, and a title present in more than one library shares its gathered details without extra requests.  " +
             "A note on announcements: this program works to keep each announcement window focused so your screen reader speaks it, but Windows can occasionally withhold focus from a background program; the complete play-by-play is always in bookFido.log.  " +
             "It opens Microsoft Edge at audible.com and uses your existing Audible login when possible.  " +
             "Progress is spoken through brief message boxes, and a full record is written to bookFido.log beside the program.  " +
@@ -472,9 +475,11 @@ class bookFido
         if (!bSearchBookshare) materializeSavedRows(aSavedBookshareRows, lBookshareCatalog);
         if (!bSearchGoodreads) materializeSavedRows(aSavedGoodreadsRows, lGoodreadsCatalog);
         if (!bSearchKindle) materializeSavedRows(aSavedKindleRows, lKindleCatalog);
+        if (!bSearchNls) materializeSavedRows(aSavedNlsRows, lNlsCatalog);
         if (bSearchBookshare) await harvestBookshareAsync();
         if (bSearchGoodreads) await harvestGoodreadsAsync();
         if (bSearchKindle) await harvestKindleAsync();
+        if (bSearchNls) await harvestNlsAsync();
         waitForEnrichment();
         saveState();
         sLibraryHtmPath = lCatalog.Count > 0 ? buildLibraryFiles(sDownloadDir) : "";
@@ -497,6 +502,11 @@ class bookFido
             try { buildBookshareFiles(sDownloadDir); }
             catch (Exception oException) { log("The Bookshare catalog documents could not be written: " + oException.Message); }
         }
+        if (lNlsCatalog.Count > 0)
+        {
+            try { buildNlsFiles(sDownloadDir); }
+            catch (Exception oException) { log("The NLS catalog documents could not be written: " + oException.Message); }
+        }
         try { sConsolidatedHtmPath = buildConsolidatedFiles(sDownloadDir); }
         catch (Exception oException) { log("The consolidated catalog could not be written: " + oException.Message); }
         if (sConsolidatedHtmPath != "") sLibraryHtmPath = sConsolidatedHtmPath;
@@ -507,6 +517,7 @@ class bookFido
             (lKindleCatalog.Count > 0 ? "Kindle library: " + lKindleCatalog.Count + " books cataloged as Kindle_Library.htm and Kindle_Library.md.  " : "") +
             (lGoodreadsCatalog.Count > 0 ? "Goodreads library: " + lGoodreadsCatalog.Count + " books cataloged as Goodreads_Library.htm and Goodreads_Library.md.  " : "") +
             (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
+            (lNlsCatalog.Count > 0 ? "NLS reading history: " + lNlsCatalog.Count + " books cataloged as NLS_Library.htm and NLS_Library.md.  " : "") +
             "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
             (bDbUpdated ? "Gathered details were remembered in bookFido.db beside the program, in the standard DbDo schema.  " : "The database was not used this run" + (sDbStatus == "" ? "" : ": " + sDbStatus) + ".  ") +
             "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  See bookFido.log for details.";
@@ -624,7 +635,7 @@ class bookFido
         lArgs.Add("--no-first-run");
         lArgs.Add("--remote-debugging-port=" + iDebugPort);
         lArgs.Add("--user-data-dir=\"" + sUserDataDir + "\"");
-        lArgs.Add("\"" + sStartUrl + "\"");
+        lArgs.Add("\"" + startUrlForRun() + "\"");
         log("Launching Edge (" + (bMainProfile ? "main profile" : "dedicated profile") + "): " + sEdgePath + " " + string.Join(" ", lArgs));
         oStartInfo = new ProcessStartInfo();
         oStartInfo.FileName = sEdgePath;
@@ -676,12 +687,20 @@ class bookFido
         log("Seeded a fresh profile Preferences file that disallows sign-in and sync");
     }
 
-    // Returns true if the local Edge debugging port answers.
+    // Returns true if the local Edge debugging port answers.  The request
+    // carries a short timeout of its own: a browser that refuses the channel
+    // can leave a request hanging for the whole default period, which is a
+    // minute and more of apparent silence at the very start of a run.
     static bool debugPortReachable()
     {
+        HttpWebRequest requestProbe;
+
         try
         {
-            using (WebClient webClientProbe = new WebClient()) { webClientProbe.DownloadString("http://127.0.0.1:" + iDebugPort + "/json/version"); }
+            requestProbe = (HttpWebRequest) WebRequest.Create("http://127.0.0.1:" + iDebugPort + "/json/version");
+            requestProbe.Timeout = iProbeTimeoutMs;
+            requestProbe.ReadWriteTimeout = iProbeTimeoutMs;
+            using (WebResponse responseProbe = requestProbe.GetResponse()) { }
             return true;
         }
         catch (Exception) { return false; }
@@ -690,15 +709,15 @@ class bookFido
     // Polls the debugging port after launching Edge, up to the given timeout.
     static bool waitForDebugPort(int iTimeoutMs)
     {
-        int iElapsedMs;
+        Stopwatch stopwatchWait;
 
-        iElapsedMs = 0;
-        while (iElapsedMs < iTimeoutMs)
+        stopwatchWait = Stopwatch.StartNew();
+        while (stopwatchWait.ElapsedMilliseconds < iTimeoutMs)
         {
             Thread.Sleep(500);
-            iElapsedMs = iElapsedMs + 500;
             if (debugPortReachable()) return true;
         }
+        log("The debugging port did not answer within " + (iTimeoutMs / 1000) + " seconds");
         return false;
     }
 
@@ -755,6 +774,80 @@ class bookFido
         wsCdp = null;
         await connectCdp();
         await enableDomains();
+    }
+
+    // Every page target Edge currently lists, newest first as Edge reports
+    // them, each as an id, its url, and its WebSocket address.  A sign-in
+    // that opens a second tab, or leaves an opener behind, shows up here.
+    static List<string[]> listPageTargets()
+    {
+        object[] aTargets;
+        string sJson, sType;
+        Dictionary<string, object> dTarget;
+        List<string[]> lPages;
+
+        lPages = new List<string[]>();
+        using (WebClient webClientJson = new WebClient()) { sJson = webClientJson.DownloadString("http://127.0.0.1:" + iDebugPort + "/json"); }
+        aTargets = (object[]) jsonCodec.DeserializeObject(sJson);
+        foreach (object oTarget in aTargets)
+        {
+            dTarget = (Dictionary<string, object>) oTarget;
+            sType = Convert.ToString(dTarget["type"]);
+            if (sType != "page") continue;
+            lPages.Add(new string[] { dTarget.ContainsKey("id") ? Convert.ToString(dTarget["id"]) : "", dTarget.ContainsKey("url") ? Convert.ToString(dTarget["url"]) : "", Convert.ToString(dTarget["webSocketDebuggerUrl"]) });
+        }
+        return lPages;
+    }
+
+    // Points the CDP socket at a specific page target and re-enables the
+    // domains, so evaluation and navigation act on that page from now on.
+    static async Task connectToWebSocket(string sWsUrl)
+    {
+        try { if (wsCdp != null) wsCdp.Dispose(); }
+        catch (Exception) { }
+        wsCdp = new ClientWebSocket();
+        await wsCdp.ConnectAsync(new Uri(sWsUrl), CancellationToken.None);
+        await enableDomains();
+    }
+
+    // Looks across every open page for one whose reading history is visible,
+    // in case the sign-in left the books on a tab other than the one the
+    // program has been watching.  If such a page is found, the CDP socket is
+    // switched to it and its scan is returned; otherwise an empty string
+    // comes back and the caller keeps to the page it had.
+    static async Task<string> findNlsHistoryAcrossTargets()
+    {
+        string sJson, sUrl;
+        List<string[]> lPages;
+
+        try { lPages = listPageTargets(); }
+        catch (Exception oException) { log("The open pages could not be listed: " + oException.Message); return ""; }
+        if (lPages.Count > 1) log("Edge has " + lPages.Count + " open pages; each is being checked for a signed-in BARD session");
+        foreach (string[] aPage in lPages)
+        {
+            sUrl = aPage[1];
+            try
+            {
+                await connectToWebSocket(aPage[2]);
+                // Whatever this tab is showing, if the session behind it is
+                // signed in, driving it to the real reading history address
+                // on the BARD site will land on the genuine page; a tab that
+                // is not signed in bounces back to the sign-in page, which is
+                // rejected because it carries no running total.  This avoids
+                // trusting a sign-in or identity page that merely happens to
+                // show book-like blocks.
+                await navigate(sNlsHistoryUrl);
+                sJson = await waitForNlsPage("", iTabWaitMs);
+                if (nlsRowCount(sJson) > 0 && await onNlsHistoryPage())
+                {
+                    log("A signed-in BARD session was found by way of the page at " + sUrl + ", so the program is reading the reading history there");
+                    return sJson;
+                }
+            }
+            catch (Exception oException) { log("The page at " + sUrl + " could not be checked: " + oException.Message); }
+        }
+        log("No open page held a signed-in BARD session showing the reading history");
+        return "";
     }
 
     // Sends one CDP command and waits for its matching reply.  If the
@@ -1479,6 +1572,7 @@ class bookFido
             aSavedKindleRows = dState.ContainsKey("kindleCatalog") ? dState["kindleCatalog"] as object[] : null;
             aSavedGoodreadsRows = dState.ContainsKey("goodreadsCatalog") ? dState["goodreadsCatalog"] as object[] : null;
             aSavedBookshareRows = dState.ContainsKey("bookshareCatalog") ? dState["bookshareCatalog"] as object[] : null;
+            aSavedNlsRows = dState.ContainsKey("nlsCatalog") ? dState["nlsCatalog"] as object[] : null;
             // Schema 2 dropped the Google Books lane, took the publisher
             // from Audible's product_details or Open Library instead, and
             // retired the Categories field.  A state saved under the old
@@ -1573,6 +1667,7 @@ class bookFido
             dState["kindleCatalog"] = lKindleCatalog;
             dState["goodreadsCatalog"] = lGoodreadsCatalog;
             dState["bookshareCatalog"] = lBookshareCatalog;
+            dState["nlsCatalog"] = lNlsCatalog;
             lock (oAuthorLock)
             {
                 dState["authorWikiBio"] = dAuthorWikiBio;
@@ -1743,7 +1838,7 @@ class bookFido
                 sMinutesWord = iEtaMinutes == 1 ? " minute" : " minutes";
                 log("Details gathered so far: Audible " + iAudibleDone + ", Open Library " + iOpenLibraryDone + ", Wikipedia " + iWikipediaDone + "; author pages checked: " + iAuthorsDone + " of " + setAuthorsQueued.Count + "; overall " + iPercent + " percent" + (bEtaReady && iEtaMinutes > 0 ? ", about " + iEtaMinutes + sMinutesWord + " remaining" : ""));
                 sProgressText = iPercent + "%";
-                sBoxText = bEtaReady && iEtaMinutes > 0 ? "About " + iEtaMinutes + sMinutesWord + " remain" : "Gathering details";
+                sBoxText = bEtaReady && iEtaMinutes > 0 ? "Book and author details: about " + iEtaMinutes + sMinutesWord + " remain" : "Gathering book and author details";
                 showTimedMessageBox(sBoxText);
                 if (bStalledLane && iTick >= iStallTicks)
                 {
@@ -2347,6 +2442,7 @@ class bookFido
             if (lKindleCatalog.Count > 0) fillKindleSheet(oPackage);
             if (lGoodreadsCatalog.Count > 0) fillGoodreadsSheet(oPackage);
             if (lBookshareCatalog.Count > 0) fillBookshareSheet(oPackage);
+            if (lNlsCatalog.Count > 0) fillNlsSheet(oPackage);
             if (File.Exists(sPath)) File.Delete(sPath);
             File.WriteAllBytes(sPath, oPackage.GetAsByteArray());
         }
@@ -2494,6 +2590,12 @@ class bookFido
             if (sFormat.Contains("epub") || sFormat.Contains("ebook")) return "EPUB";
             if (sFormat.Contains("paperback") || sFormat.Contains("hardcover") || sFormat.Contains("hardback") || sFormat.Contains("print") || sFormat.Contains("mass market") || sFormat.Contains("library binding") || sFormat.Contains("board book") || sFormat.Contains("spiral")) return "Print";
             return "Generic";
+        }
+        if (sLibrary == "NLS")
+        {
+            // The NLS number says what the copy is: braille when it starts
+            // with BR, a digital talking book otherwise.
+            return Convert.ToString(dRow.ContainsKey("nlsId") ? dRow["nlsId"] : "").StartsWith("BR") ? "Braille" : "Audio";
         }
         sFormat = bsField(dRow, "Format").ToLowerInvariant();
         if (sFormat.Contains("epub")) return "EPUB";
@@ -3659,6 +3761,588 @@ class bookFido
         return sProbe == "yes";
     }
 
+
+    // The page Edge opens at: the home of the first library this run will
+    // actually visit, so the browser never opens a site that was left
+    // unchecked in the opening dialog.
+    static string startUrlForRun()
+    {
+        if (bSearchAudible) return sStartUrl;
+        if (bSearchBookshare) return "https://www.bookshare.org/";
+        if (bSearchGoodreads) return "https://www.goodreads.com/";
+        if (bSearchKindle) return "https://read.amazon.com/kindle-library";
+        if (bSearchNls) return sNlsRootUrl;
+        return "about:blank";
+    }
+
+    // ---- The NLS library ------------------------------------------------
+    // The reading history at the National Library Service's BARD site is
+    // server rendered: each book is an item-details block carrying its NLS
+    // number as the element id, with the title, labelled metadata lines,
+    // and an annotation that serves as the book's description.  Pages are
+    // walked by offset, two hundred and fifty at a time.  A failure
+    // anywhere in this phase is announced and the run continues.
+    static async Task harvestNlsAsync()
+    {
+        int iAttempt, iOffset, iPage, iTotal;
+        string sJson, sPreviousFirstId;
+        DialogResult dialogResultNls;
+        Dictionary<string, Dictionary<string, object>> dSeenById;
+        Dictionary<string, object> dItem, dReply, dRow, dSavedRow;
+        Dictionary<string, Dictionary<string, object>> dByKey, dSavedById;
+        object[] aRows;
+
+        try
+        {
+            sProgressText = "";
+            log("NLS reading history harvest starting");
+            // BARD signs in through an identity service, and arriving at a
+            // deep link can leave that conversation half finished, which the
+            // site reports as a missing id_token_hint.  So the walk enters by
+            // the site's own front door, lets the site run its sign-in, and
+            // only then asks for the reading history.  If a stale sign-in
+            // from an earlier attempt is in the way, this site's cookies and
+            // storage are cleared once and the sign-in starts fresh.
+            // The sign-in is left entirely to the person: BARD's identity
+            // service runs on its own site and its errors cannot be steered
+            // from here.  What can be judged honestly is whether the reading
+            // history is visible, so that is the only test used: if books can
+            // be seen, the walk proceeds; if not, the person is asked to sign
+            // in, with the option of clearing this site's stored sign-in and
+            // starting over, or skipping the library for this run.
+            iAttempt = 0;
+            sJson = "";
+            while (true)
+            {
+                iAttempt = iAttempt + 1;
+                if (iAttempt > 5) { log("The NLS reading history never became visible, so the library is skipped this run"); showTimedMessageBox("The NLS library could not be gathered this run"); return; }
+                if (iAttempt == 1)
+                {
+                    await navigate(sNlsHistoryUrl);
+                    sJson = await waitForNlsPage("", iSignInWaitMs);
+                    if (nlsRowCount(sJson) == 0 || !await onNlsHistoryPage()) sJson = await findNlsHistoryAcrossTargets();
+                }
+                else
+                {
+                    sJson = await evaluate(nlsScanScript());
+                }
+                if (nlsRowCount(sJson) > 0 && await onNlsHistoryPage()) break;
+                await logPageState("before asking for the NLS sign-in");
+                if (iAttempt == 1) { await navigate(sNlsLoginUrl); await Task.Delay(3000); }
+                focusWhenShown("bookFido: log in to NLS");
+                dialogResultNls = MessageBox.Show("bookFido cannot see your NLS reading history yet.\r\n\r\nSign in to BARD in the Edge window that is open, and go to your reading history if you like.  Then choose Yes to continue.\r\n\r\nChoose No to clear the stored BARD sign-in and start it over, which can cure a sign-in error such as a missing parameter.  Only this site is affected; your other libraries stay signed in.\r\n\r\nChoose Cancel to skip the NLS library this run.", "bookFido: log in to NLS", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
+                if (dialogResultNls == DialogResult.Cancel) { log("The NLS library was skipped at the sign-in prompt"); return; }
+                if (dialogResultNls == DialogResult.No)
+                {
+                    await clearSiteData("https://nlsbard.loc.gov");
+                    await clearSiteData("https://bard.loc.gov");
+                    await Task.Delay(1000);
+                    await navigate(sNlsLoginUrl);
+                    await Task.Delay(3000);
+                    continue;
+                }
+                // Yes: the reading history the person is looking at may be
+                // on a different tab than the one this program has watched,
+                // because the sign-in can open or leave behind another page.
+                // Every open tab's session is tried by driving it to the real
+                // reading history address; the program keeps whichever lands
+                // on the genuine page, identified by its running total.
+                sJson = await findNlsHistoryAcrossTargets();
+                if (nlsRowCount(sJson) > 0 && await onNlsHistoryPage()) break;
+            }
+            log("The NLS reading history is visible, so the walk begins");
+            dSavedById = new Dictionary<string, Dictionary<string, object>>();
+            if (aSavedNlsRows != null)
+            {
+                foreach (object oRow in aSavedNlsRows)
+                {
+                    dSavedRow = oRow as Dictionary<string, object>;
+                    if (dSavedRow != null && dSavedRow.ContainsKey("nlsId")) dSavedById[Convert.ToString(dSavedRow["nlsId"])] = dSavedRow;
+                }
+            }
+            dByKey = crossLibraryMap();
+            dSeenById = new Dictionary<string, Dictionary<string, object>>();
+            iTotal = 0;
+            iOffset = 0;
+            iPage = 0;
+            sPreviousFirstId = "";
+            while (true)
+            {
+                iPage = iPage + 1;
+                if (iPage > 200) { log("The NLS harvest stopped at the safety cap of 200 pages"); break; }
+                if (iPage > 1)
+                {
+                    await navigate(sNlsHistoryUrl + "?offset=" + iOffset);
+                    // The reading history is drawn by the page's own script
+                    // after the address has loaded, so the scan waits for
+                    // books to appear, and for them to be different books
+                    // than the page just read, rather than trusting a pause.
+                    sJson = await waitForNlsPage(sPreviousFirstId);
+                    if (nlsRowCount(sJson) == 0 || !await onNlsHistoryPage()) { log("No further books appeared at offset " + iOffset + ", so the NLS walk ends there"); break; }
+                }
+                if (sJson == "") { log("The NLS page scan returned no result, so the harvest stopped at offset " + iOffset); break; }
+                dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+                if (iTotal == 0 && dReply.ContainsKey("total") && Convert.ToString(dReply["total"]) != "") iTotal = Convert.ToInt32(Convert.ToString(dReply["total"]).Replace(",", ""));
+                aRows = dReply.ContainsKey("rows") ? dReply["rows"] as object[] : null;
+                if (aRows == null || aRows.Length == 0)
+                {
+                    if (iPage == 1) log("The NLS reading history held no entries; the page title was: " + await evaluate("document.title") + "; the address was: " + await evaluate("location.href"));
+                    break;
+                }
+                sPreviousFirstId = nlsFirstId(sJson);
+                foreach (object oItem in aRows)
+                {
+                    dItem = oItem as Dictionary<string, object>;
+                    if (dItem == null) continue;
+                    dRow = nlsRowFromItem(dItem, dSavedById);
+                    if (dRow == null || dSeenById.ContainsKey(Convert.ToString(dRow["nlsId"]))) continue;
+                    dSeenById[Convert.ToString(dRow["nlsId"])] = dRow;
+                    lNlsCatalog.Add(dRow);
+                    enqueueSharedEnrichment(dRow, dByKey);
+                }
+                if (iTotal > 0) sProgressText = (lNlsCatalog.Count * 100 / iTotal) + "%";
+                showTimedMessageBox("NLS reading history: " + lNlsCatalog.Count + " books so far");
+                iOffset = iOffset + iNlsPageSize;
+                if (iTotal > 0 && iOffset >= iTotal) break;
+            }
+            log("NLS reading history harvest complete: " + lNlsCatalog.Count + " books, of which " + countRowsWithKey(lNlsCatalog, "twinKey") + " share details with another library");
+            showTimedMessageBox("NLS reading history: " + lNlsCatalog.Count + " books found");
+            savePeriodically(true);
+        }
+        catch (Exception oException)
+        {
+            log("The NLS reading history could not be harvested, so the run continues without it: " + oException.Message);
+            showTimedMessageBox("The NLS library could not be gathered this run");
+        }
+    }
+
+    // Waits for a reading history page to draw itself, up to twenty
+    // seconds, and returns its scan once books appear that are not the ones
+    // the previous page held.
+    static async Task<string> waitForNlsPage(string sPreviousFirstId)
+    {
+        return await waitForNlsPage(sPreviousFirstId, iRenderWaitMs);
+    }
+
+    // Waits for a reading history page to draw itself, and then for its list
+    // to settle: the page fills in progressively, so a scan taken the moment
+    // the first books appear can miss the rest.  The scan is repeated until
+    // the count stops growing, and that settled scan is what comes back.
+    static async Task<string> waitForNlsPage(string sPreviousFirstId, int iWaitMs)
+    {
+        int iCount, iPrevious, iWaited;
+        string sJson, sSettled;
+
+        sJson = "";
+        sSettled = "";
+        iPrevious = -1;
+        iWaited = 0;
+        while (iWaited < iWaitMs)
+        {
+            await Task.Delay(500);
+            iWaited = iWaited + 500;
+            sJson = await evaluate(nlsScanScript());
+            iCount = nlsRowCount(sJson);
+            if (iCount == 0 || nlsFirstId(sJson) == sPreviousFirstId) continue;
+            if (iCount == iPrevious) return sJson;
+            iPrevious = iCount;
+            sSettled = sJson;
+        }
+        if (sSettled != "") return sSettled;
+        log("No books appeared within " + (iWaitMs / 1000) + " seconds on this page");
+        return "";
+    }
+
+    // The NLS number of the first book in a scan result, or an empty string.
+    static string nlsFirstId(string sJson)
+    {
+        Dictionary<string, object> dFirst, dReply;
+        object[] aRows;
+
+        if (sJson == null || sJson == "") return "";
+        try
+        {
+            dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+            aRows = dReply.ContainsKey("rows") ? dReply["rows"] as object[] : null;
+            if (aRows == null || aRows.Length == 0) return "";
+            dFirst = aRows[0] as Dictionary<string, object>;
+            return dFirst != null && dFirst.ContainsKey("id") ? Convert.ToString(dFirst["id"]) : "";
+        }
+        catch (Exception) { return ""; }
+    }
+
+    // How many books a scan result holds, without trusting its shape.
+    static int nlsRowCount(string sJson)
+    {
+        Dictionary<string, object> dReply;
+        object[] aRows;
+
+        if (sJson == null || sJson == "") return 0;
+        try
+        {
+            dReply = (Dictionary<string, object>) jsonCodec.DeserializeObject(sJson);
+            aRows = dReply.ContainsKey("rows") ? dReply["rows"] as object[] : null;
+            return aRows == null ? 0 : aRows.Length;
+        }
+        catch (Exception) { return 0; }
+    }
+
+    // Whether the browser is actually on the reading history page served by
+    // the BARD site, as opposed to a sign-in or identity page that may
+    // happen to show book-like blocks.  The real page reports the running
+    // total in its "items 1 through N of M" line, which the sign-in pages
+    // do not, so that total is the mark of the genuine page.
+    static async Task<bool> onNlsHistoryPage()
+    {
+        string sHost, sPath, sTotal;
+
+        sHost = await evaluate("location.hostname");
+        sPath = await evaluate("location.pathname");
+        // The reading history is served by nlsbard.loc.gov; "bard.loc.gov"
+        // is a suffix of it, so this test accepts the host either way.
+        if (sHost.IndexOf("bard.loc.gov", StringComparison.OrdinalIgnoreCase) < 0) return false;
+        if (sPath.IndexOf("reading-history", StringComparison.OrdinalIgnoreCase) < 0) return false;
+        // The genuine page shows "items 1 through N of M"; the identity pages
+        // do not, so a total line ending in a number is the mark.
+        sTotal = await evaluate("(function () { var o = document.querySelector(\"#total-display-item\"); return o ? o.textContent : \"\"; })()");
+        return System.Text.RegularExpressions.Regex.IsMatch(sTotal, "of\\s+[0-9,]+\\s*\\)");
+    }
+
+    // Records what the browser is actually showing, so a sign-in that will
+    // not settle can be diagnosed from the log rather than guessed at.
+    static async Task logPageState(string sWhen)
+    {
+        string sSnippet, sTitle, sUrl;
+
+        sUrl = await evaluate("location.href");
+        sTitle = await evaluate("document.title");
+        sSnippet = await evaluate("(function () { var sText = document.body ? document.body.innerText : \"\"; return sText.replace(/\\s+/g, \" \").trim().substring(0, 300); })()");
+        log("Page state " + sWhen + ": address " + sUrl + " | title " + sTitle + " | text " + sSnippet);
+    }
+
+    // Whether the site is not showing signed-in content: a sign-in address,
+    // a sign-in form on the page, or one of its sign-in error pages.
+    static async Task<bool> nlsSignInTrouble(string sUrl)
+    {
+        if (sUrl.ToLower().Contains("/login") || sUrl.ToLower().Contains("signin") || sUrl.ToLower().Contains("logout")) return true;
+        if (await nlsErrorShowing(sUrl)) return true;
+        return await loginFormShowing();
+    }
+
+    // Whether the page is one of the identity service's error pages, such as
+    // the missing id_token_hint report.
+    static async Task<bool> nlsErrorShowing(string sUrl)
+    {
+        string sProbe;
+
+        if (sUrl.ToLower().Contains("error")) return true;
+        sProbe = await evaluate("(function () { var sText = (document.body ? document.body.innerText : \"\").substring(0, 1500).toLowerCase(); return (sText.indexOf(\"missing parameter\") >= 0 || sText.indexOf(\"id_token_hint\") >= 0 || sText.indexOf(\"invalid_request\") >= 0) ? \"yes\" : \"no\"; })()");
+        return sProbe == "yes";
+    }
+
+    // Clears one site's cookies and stored data, leaving every other site's
+    // sign-in in this profile untouched.
+    static async Task clearSiteData(string sOrigin)
+    {
+        Dictionary<string, object> dParams;
+
+        dParams = new Dictionary<string, object>();
+        dParams["origin"] = sOrigin;
+        dParams["storageTypes"] = "cookies,local_storage,indexeddb,service_workers,cache_storage";
+        try { await cdpSend("Storage.clearDataForOrigin", dParams); log("Cleared the stored data for " + sOrigin); }
+        catch (Exception oException) { log("The stored data for " + sOrigin + " could not be cleared: " + oException.Message); }
+    }
+
+    // The in-page scan of one reading history page: each item-details block
+    // gives its NLS number, the title with that number trimmed from the
+    // end, every labelled metadata line under its own label, and the
+    // annotation that becomes the book's description.
+    static string nlsScanScript()
+    {
+        return "(function () {" +
+            " var lOut = [];" +
+            " var lBlocks = document.querySelectorAll(\"div.item-details\");" +
+            " for (var i = 0; i < lBlocks.length; i++) {" +
+            "  var oBlock = lBlocks[i];" +
+            "  var o = { fields: {} };" +
+            "  o.id = oBlock.getAttribute(\"id\") || \"\";" +
+            "  var oTitle = oBlock.querySelector(\"h4.item-link a span\");" +
+            "  if (!oTitle) continue;" +
+            "  var sTitle = oTitle.textContent.replace(/\\s+/g, \" \").trim();" +
+            "  if (o.id && sTitle.length > o.id.length && sTitle.substring(sTitle.length - o.id.length) == o.id) sTitle = sTitle.substring(0, sTitle.length - o.id.length).trim();" +
+            "  o.title = sTitle;" +
+            "  var lFields = oBlock.querySelectorAll(\"p[data-testid]\");" +
+            "  for (var j = 0; j < lFields.length; j++) {" +
+            "   var oP = lFields[j];" +
+            "   var sKey = oP.getAttribute(\"data-testid\") || \"\";" +
+            "   if (sKey.indexOf(\"detail-value-p-\") !== 0 || sKey.indexOf(\"wishlist\") >= 0) continue;" +
+            "   var oB = oP.querySelector(\"b\");" +
+            "   var sLabel = oB ? oB.textContent.replace(\":\", \"\").replace(/\\s+/g, \" \").trim() : sKey.substring(15);" +
+            "   var oClone = oP.cloneNode(true);" +
+            "   var oInner = oClone.querySelector(\"b\");" +
+            "   if (oInner) oInner.parentNode.removeChild(oInner);" +
+            "   var sValue = oClone.textContent.replace(/\\s+/g, \" \").trim();" +
+            "   if (sLabel != \"\" && sValue != \"\") o.fields[sLabel] = sValue;" +
+            "  }" +
+            "  var oNote = oBlock.querySelector(\"p.annotation\");" +
+            "  if (oNote) o.annotation = oNote.textContent.replace(/\\s+/g, \" \").trim();" +
+            "  lOut.push(o);" +
+            " }" +
+            " var oTotal = document.querySelector(\"#total-display-item\");" +
+            " var sTotal = \"\";" +
+            " if (oTotal) { var oMatch = oTotal.textContent.match(/of\\s+([0-9,]+)\\s*\\)/); if (oMatch) sTotal = oMatch[1]; }" +
+            " return JSON.stringify({ total: sTotal, rows: lOut });" +
+            "})()";
+    }
+
+    // Shapes one scanned NLS entry into a catalog row: the NLS number and
+    // its page, the authors in natural order, the annotation as the
+    // description, and every labelled line kept under its own label.
+    static Dictionary<string, object> nlsRowFromItem(Dictionary<string, object> dItem, Dictionary<string, Dictionary<string, object>> dSavedById)
+    {
+        string sId, sNote;
+        Dictionary<string, object> dPair, dRow, dSaved;
+        List<object> lAuthors;
+
+        if (!dItem.ContainsKey("title") || Convert.ToString(dItem["title"]).Trim() == "") return null;
+        sId = dItem.ContainsKey("id") ? Convert.ToString(dItem["id"]).Trim() : "";
+        if (sId == "") return null;
+        dRow = new Dictionary<string, object>();
+        dRow["nlsId"] = sId;
+        dRow["title"] = Convert.ToString(dItem["title"]).Trim();
+        dRow["nlsUrl"] = "https://nlsbard.loc.gov/bard2-web/search/" + sId + "/";
+        lAuthors = new List<object>();
+        if (dItem.ContainsKey("fields") && dItem["fields"] is Dictionary<string, object>)
+        {
+            dRow["nlsFields"] = dItem["fields"];
+            foreach (string sName in nlsAuthorNames(nlsField(dRow, "Authors") == "" ? nlsField(dRow, "Author") : nlsField(dRow, "Authors")))
+            {
+                dPair = new Dictionary<string, object>();
+                dPair["name"] = sName;
+                dPair["url"] = "";
+                lAuthors.Add(dPair);
+            }
+        }
+        dRow["authors"] = lAuthors;
+        if (dItem.ContainsKey("annotation"))
+        {
+            sNote = Convert.ToString(dItem["annotation"]).Trim();
+            while (sNote.StartsWith("\"")) sNote = sNote.Substring(1).Trim();
+            while (sNote.EndsWith("\"")) sNote = sNote.Substring(0, sNote.Length - 1).Trim();
+            if (sNote.Length >= 40) dRow["description"] = sNote;
+        }
+        if (dSavedById.ContainsKey(sId))
+        {
+            dSaved = dSavedById[sId];
+            foreach (string sField in new string[] { "firstPublished", "publisher", "wikipediaUrl", "wikipediaTitle", "openLibraryChecked", "wikipediaChecked" })
+            {
+                if (dSaved.ContainsKey(sField) && !dRow.ContainsKey(sField)) dRow[sField] = dSaved[sField];
+            }
+        }
+        return dRow;
+    }
+
+    // NLS names authors as surname and given name pairs joined by commas,
+    // so "Macfarlane, Robert, Morris, Jackie" is two people; an even number
+    // of parts is read as pairs and anything else is left as it stands.
+    static List<string> nlsAuthorNames(string sRaw)
+    {
+        int iAt, iOpen;
+        string sGiven, sName;
+        string[] aParts;
+        List<string> lNames;
+
+        lNames = new List<string>();
+        if (sRaw == null || sRaw.Trim() == "") return lNames;
+        aParts = sRaw.Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
+        if (aParts.Length % 2 != 0)
+        {
+            sName = kindleAuthorName(sRaw);
+            if (sName != "") lNames.Add(sName);
+            return lNames;
+        }
+        for (iAt = 0; iAt < aParts.Length; iAt = iAt + 2)
+        {
+            sGiven = aParts[iAt + 1].Trim();
+            iOpen = sGiven.IndexOf(" (");
+            if (iOpen > 0) sGiven = sGiven.Substring(0, iOpen).Trim();
+            sName = (sGiven + " " + aParts[iAt].Trim()).Trim();
+            if (sName != "" && sName.Length <= 60 && !lNames.Contains(sName)) lNames.Add(sName);
+        }
+        return lNames;
+    }
+
+    // A named NLS metadata line's value, or an empty string.
+    static string nlsField(Dictionary<string, object> dRow, string sLabel)
+    {
+        Dictionary<string, object> dFields;
+
+        if (!dRow.ContainsKey("nlsFields")) return "";
+        dFields = dRow["nlsFields"] as Dictionary<string, object>;
+        if (dFields == null || !dFields.ContainsKey(sLabel)) return "";
+        return Convert.ToString(dFields[sLabel]).Trim();
+    }
+
+    // One NLS book's full entry, used by both the NLS document and the
+    // consolidated catalog.
+    static void appendNlsEntry(StringBuilder sbHtml, StringBuilder sbMd, Dictionary<string, object> dRow)
+    {
+        string sId, sTitle;
+        List<string> lExtraLabels;
+        List<string[]> lPairs;
+
+        Monitor.Enter(dRow);
+        sId = "nls" + Convert.ToString(dRow["nlsId"]);
+        sTitle = catalogValue(dRow, "title");
+        if (sTitle == "") { Monitor.Exit(dRow); return; }
+        sbHtml.Append("<h2 id=\"" + sId + "\"><a href=\"" + htmlText(catalogValue(dRow, "nlsUrl")) + "\">" + htmlText(titleWithYear(dRow)) + "</a></h2>\r\n");
+        sbMd.Append("## [" + mdText(titleWithYear(dRow)) + "](" + catalogValue(dRow, "nlsUrl") + ") {#" + sId + "}\r\n\r\n");
+        lPairs = catalogLinks(dRow, "authors");
+        appendField(sbHtml, sbMd, "By", linksHtml(lPairs), linksMd(lPairs));
+        appendField(sbHtml, sbMd, "Edition", htmlText(editionText(dRow, "NLS")), editionText(dRow, "NLS"));
+        appendField(sbHtml, sbMd, "Description", htmlText(catalogValue(dRow, "description")), catalogValue(dRow, "description"));
+        appendField(sbHtml, sbMd, "First published", htmlText(catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)"), catalogValue(dRow, "firstPublished") == "" ? "" : catalogValue(dRow, "firstPublished") + " (Open Library)");
+        appendField(sbHtml, sbMd, "NLS number", htmlText(Convert.ToString(dRow["nlsId"])), Convert.ToString(dRow["nlsId"]));
+        appendField(sbHtml, sbMd, "Publisher", htmlText(catalogValue(dRow, "publisher")), catalogValue(dRow, "publisher"));
+        appendField(sbHtml, sbMd, "Wikipedia", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "<a href=\"" + htmlText(catalogValue(dRow, "wikipediaUrl")) + "\">" + htmlText(catalogValue(dRow, "wikipediaTitle")) + "</a>", catalogValue(dRow, "wikipediaUrl") == "" ? "" : "[" + mdText(catalogValue(dRow, "wikipediaTitle")) + "](" + catalogValue(dRow, "wikipediaUrl") + ")");
+        lExtraLabels = new List<string>();
+        if (dRow.ContainsKey("nlsFields") && dRow["nlsFields"] is Dictionary<string, object>)
+        {
+            foreach (KeyValuePair<string, object> oEntry in (Dictionary<string, object>) dRow["nlsFields"]) lExtraLabels.Add(oEntry.Key);
+        }
+        lExtraLabels.Sort(StringComparer.OrdinalIgnoreCase);
+        foreach (string sLabel in lExtraLabels)
+        {
+            if (sLabel == "Authors" || sLabel == "Author") continue;
+            appendField(sbHtml, sbMd, sLabel, htmlText(nlsField(dRow, sLabel)), nlsField(dRow, sLabel));
+        }
+        Monitor.Exit(dRow);
+    }
+
+    // Builds NLS_Library.htm and NLS_Library.md in the download folder, in
+    // the family shape: a table of contents, an introduction with counts,
+    // every book's fields, and appendixes ending with About the Authors.
+    static void buildNlsFiles(string sDownloadDir)
+    {
+        string sId, sIntroText, sStats, sTitle;
+        Dictionary<string, List<string[]>> dByAuthor, dByFormat, dByNarrator, dBySubject;
+        List<Dictionary<string, object>> lOrdered;
+        StringBuilder sbHtml, sbMd;
+
+        dByAuthor = new Dictionary<string, List<string[]>>();
+        dByFormat = new Dictionary<string, List<string[]>>();
+        dByNarrator = new Dictionary<string, List<string[]>>();
+        dBySubject = new Dictionary<string, List<string[]>>();
+        sbHtml = new StringBuilder();
+        sbMd = new StringBuilder();
+        lOrdered = new List<Dictionary<string, object>>(lNlsCatalog);
+        lOrdered.Sort(compareCatalogRowsByTitle);
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow)
+            {
+                sId = "nls" + Convert.ToString(dRow["nlsId"]);
+                sTitle = catalogValue(dRow, "title");
+                foreach (string[] aPair in catalogLinks(dRow, "authors")) addToIndex(dByAuthor, aPair[0], sTitle, sId);
+                addToIndex(dByFormat, editionText(dRow, "NLS"), sTitle, sId);
+                foreach (string sSubject in nlsField(dRow, "Subject").Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries)) addToIndex(dBySubject, sSubject.Trim(), sTitle, sId);
+                foreach (string sReader in nlsField(dRow, "Read by").Split(new string[] { ", " }, StringSplitOptions.RemoveEmptyEntries)) addToIndex(dByNarrator, sReader.Trim(), sTitle, sId);
+            }
+        }
+        sIntroText = "This catalog lists every book in the National Library Service reading history, gathered from BARD with every field its pages offer, including the annotation that describes each book, and enriched from Open Library and Wikipedia.  A book that also exists in another library shares the details already gathered there.";
+        sStats = "The history holds " + lNlsCatalog.Count + (lNlsCatalog.Count == 1 ? " book" : " books") + " by " + dByAuthor.Count + (dByAuthor.Count == 1 ? " author" : " authors") + ", read by " + dByNarrator.Count + (dByNarrator.Count == 1 ? " narrator" : " narrators") + ", across " + dBySubject.Count + (dBySubject.Count == 1 ? " subject" : " subjects") + ".";
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>NLS Library</title>\r\n</head>\r\n<body>\r\n");
+        sbHtml.Append("<h1>NLS Library</h1>\r\n");
+        sbHtml.Append("<nav aria-label=\"Table of contents\">\r\n<h2 id=\"contents\">Contents</h2>\r\n<ul>\r\n");
+        sbHtml.Append("<li><a href=\"#introduction\">Introduction</a></li>\r\n<li><a href=\"#books\">Books</a>\r\n<ul>\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbHtml.Append("<li><a href=\"#nls" + Convert.ToString(dRow["nlsId"]) + "\">" + htmlText(titleWithYear(dRow)) + "</a></li>\r\n"); }
+        }
+        sbHtml.Append("</ul>\r\n</li>\r\n");
+        sbHtml.Append("<li><a href=\"#appendix-a\">Appendix A: Books by Author</a></li>\r\n<li><a href=\"#appendix-b\">Appendix B: Books by Subject</a></li>\r\n<li><a href=\"#appendix-c\">Appendix C: Books by Narrator</a></li>\r\n<li><a href=\"#appendix-d\">Appendix D: Books by Edition</a></li>\r\n<li><a href=\"#appendix-e\">Appendix E: About the Authors</a></li>\r\n");
+        sbHtml.Append("</ul>\r\n</nav>\r\n");
+        sbMd.Append("# NLS Library\r\n\r\n## Contents {#contents}\r\n\r\n");
+        sbMd.Append("- [Introduction](#introduction)\r\n- [Books](#books)\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered)
+        {
+            lock (dRow) { sbMd.Append("    - [" + mdText(titleWithYear(dRow)) + "](#nls" + Convert.ToString(dRow["nlsId"]).ToLower() + ")\r\n"); }
+        }
+        sbMd.Append("- [Appendix A: Books by Author](#appendix-a)\r\n- [Appendix B: Books by Subject](#appendix-b)\r\n- [Appendix C: Books by Narrator](#appendix-c)\r\n- [Appendix D: Books by Edition](#appendix-d)\r\n- [Appendix E: About the Authors](#appendix-e)\r\n\r\n");
+        sbHtml.Append("<h2 id=\"introduction\">Introduction</h2>\r\n<p>" + htmlText(sIntroText) + "</p>\r\n<p>" + htmlText(sStats) + "</p>\r\n");
+        sbMd.Append("## Introduction {#introduction}\r\n\r\n" + sIntroText + "\r\n\r\n" + sStats + "\r\n\r\n");
+        sbHtml.Append("<h2 id=\"books\">Books</h2>\r\n");
+        sbMd.Append("## Books {#books}\r\n\r\n");
+        foreach (Dictionary<string, object> dRow in lOrdered) appendNlsEntry(sbHtml, sbMd, dRow);
+        appendAppendix(sbHtml, sbMd, "appendix-a", "Appendix A: Books by Author", dByAuthor, true);
+        appendAppendix(sbHtml, sbMd, "appendix-b", "Appendix B: Books by Subject", dBySubject);
+        appendAppendix(sbHtml, sbMd, "appendix-c", "Appendix C: Books by Narrator", dByNarrator);
+        appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Edition", dByFormat);
+        appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the reading history, with the number of books they account for, and a biography when a reliable one was found.");
+        sbHtml.Append("</body>\r\n</html>\r\n");
+        File.WriteAllText(Path.Combine(sDownloadDir, "NLS_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(sDownloadDir, "NLS_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        log("The NLS catalog was saved as NLS_Library.htm and NLS_Library.md in " + sDownloadDir);
+    }
+
+    // The NLS sheet of the workbook, with the family's conventions.
+    static void fillNlsSheet(ExcelPackage oPackage)
+    {
+        int iCol, iRow, iWidth;
+        int[] aWidths;
+        string[] aHeaders;
+        List<Dictionary<string, object>> lSorted;
+        List<string[]> lPairs;
+
+        aHeaders = new string[] { "Title", "NLS number", "NLS link", "By", "Edition", "Downloaded", "Reading time", "Read by", "Subject", "Series", "Production", "First published", "Publisher", "Wikipedia", "Description" };
+        lSorted = new List<Dictionary<string, object>>(lNlsCatalog);
+        lSorted.Sort(compareCatalogRowsByTitle);
+        ExcelWorksheet oSheet = oPackage.Workbook.Worksheets.Add("NLS");
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1) oSheet.Cells[1, iCol].Value = aHeaders[iCol - 1];
+        oSheet.Cells[1, 1, 1, aHeaders.Length].Style.Font.Bold = true;
+        iRow = 1;
+        foreach (Dictionary<string, object> dRow in lSorted)
+        {
+            iRow = iRow + 1;
+            Monitor.Enter(dRow);
+            oSheet.Cells[iRow, 1].Value = catalogValue(dRow, "title");
+            oSheet.Cells[iRow, 2].Value = Convert.ToString(dRow["nlsId"]);
+            oSheet.Cells[iRow, 3].Value = catalogValue(dRow, "nlsUrl");
+            lPairs = catalogLinks(dRow, "authors");
+            oSheet.Cells[iRow, 4].Value = joinPairNames(lPairs);
+            oSheet.Cells[iRow, 5].Value = editionText(dRow, "NLS");
+            oSheet.Cells[iRow, 6].Value = nlsField(dRow, "Downloaded");
+            oSheet.Cells[iRow, 7].Value = nlsField(dRow, "Reading Time");
+            oSheet.Cells[iRow, 8].Value = nlsField(dRow, "Read by");
+            oSheet.Cells[iRow, 9].Value = nlsField(dRow, "Subject");
+            oSheet.Cells[iRow, 10].Value = nlsField(dRow, "Series");
+            oSheet.Cells[iRow, 11].Value = nlsField(dRow, "Production");
+            oSheet.Cells[iRow, 12].Value = catalogValue(dRow, "firstPublished");
+            oSheet.Cells[iRow, 13].Value = catalogValue(dRow, "publisher");
+            oSheet.Cells[iRow, 14].Value = catalogValue(dRow, "wikipediaUrl");
+            oSheet.Cells[iRow, 15].Value = catalogValue(dRow, "description");
+            Monitor.Exit(dRow);
+        }
+        aWidths = new int[aHeaders.Length];
+        for (iCol = 1; iCol <= aHeaders.Length; iCol = iCol + 1)
+        {
+            aWidths[iCol - 1] = aHeaders[iCol - 1].Length;
+            for (iRow = 2; iRow <= lSorted.Count + 1; iRow = iRow + 1)
+            {
+                iWidth = oSheet.Cells[iRow, iCol].Value == null ? 0 : Convert.ToString(oSheet.Cells[iRow, iCol].Value).Length;
+                if (iWidth > aWidths[iCol - 1]) aWidths[iCol - 1] = iWidth;
+            }
+            if (aWidths[iCol - 1] > 40)
+            {
+                aWidths[iCol - 1] = 40;
+                oSheet.Column(iCol).Style.WrapText = true;
+            }
+            oSheet.Column(iCol).Width = aWidths[iCol - 1] + 2;
+        }
+        oSheet.View.FreezePanes(2, 1);
+        oSheet.Names.Add("ColumnTitle01", oSheet.Cells[1, 1]);
+    }
+
     // ---- The Bookshare library ------------------------------------------
     // The My History page at bookshare.org is server-rendered: each entry
     // is a resultsBook block with the title link carrying the book id,
@@ -4508,9 +5192,10 @@ class bookFido
                 iBookCount = iBookCount + saveBookList(lKindleCatalog);
                 iBookCount = iBookCount + saveBookList(lGoodreadsCatalog);
                 iBookCount = iBookCount + saveBookList(lBookshareCatalog);
+                iBookCount = iBookCount + saveBookList(lNlsCatalog);
                 saveAuthors();
                 transactionSave.Commit();
-                log("The database was updated: " + iBookCount + " book records considered across the four libraries");
+                log("The database was updated: " + iBookCount + " book records considered across the five libraries");
                 bDbUpdated = true;
             }
             connectionDb.Close();
@@ -4637,6 +5322,7 @@ class bookFido
         addRowsToKeyMap(dByKey, lKindleCatalog, aSavedKindleRows);
         addRowsToKeyMap(dByKey, lGoodreadsCatalog, aSavedGoodreadsRows);
         addRowsToKeyMap(dByKey, lBookshareCatalog, aSavedBookshareRows);
+        addRowsToKeyMap(dByKey, lNlsCatalog, aSavedNlsRows);
         return dByKey;
     }
 
@@ -4685,6 +5371,7 @@ class bookFido
         resolveTwinList(lKindleCatalog, dByKey);
         resolveTwinList(lGoodreadsCatalog, dByKey);
         resolveTwinList(lBookshareCatalog, dByKey);
+        resolveTwinList(lNlsCatalog, dByKey);
     }
 
     static void resolveTwinList(List<Dictionary<string, object>> lRows, Dictionary<string, Dictionary<string, object>> dByKey)
@@ -5364,10 +6051,11 @@ class bookFido
         foreach (Dictionary<string, object> dRow in lKindleCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Kindle"; lEntries.Add(dInner); }
         foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Goodreads"; lEntries.Add(dInner); }
         foreach (Dictionary<string, object> dRow in lBookshareCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "Bookshare"; lEntries.Add(dInner); }
+        foreach (Dictionary<string, object> dRow in lNlsCatalog) { dInner = new Dictionary<string, object>(); dInner["row"] = dRow; dInner["lib"] = "NLS"; lEntries.Add(dInner); }
         if (lEntries.Count == 0) return "";
         lEntries.Sort(delegate(Dictionary<string, object> dA, Dictionary<string, object> dB) { return compareCatalogRowsByTitle((Dictionary<string, object>) dA["row"], (Dictionary<string, object>) dB["row"]); });
         sIntroText = "This is the consolidated bookFido catalog: every book from every library together, in order by title.  Each entry lists the fields its own library offers, and an Edition field tells whether the book is Kindle, Audible, Print, EPUB, or Generic.  A book owned in more than one library appears once for each, so the same title may follow itself in a different edition.  There are no appendixes here; each library's own catalog document carries those.";
-        sStats = "The libraries hold " + lEntries.Count + " entries together: Audible " + lCatalog.Count + ", Kindle " + lKindleCatalog.Count + ", Goodreads " + lGoodreadsCatalog.Count + ", and Bookshare " + lBookshareCatalog.Count + ".";
+        sStats = "The libraries hold " + lEntries.Count + " entries together: Audible " + lCatalog.Count + ", Bookshare " + lBookshareCatalog.Count + ", Goodreads " + lGoodreadsCatalog.Count + ", Kindle " + lKindleCatalog.Count + ", and NLS " + lNlsCatalog.Count + ".";
         sbHtml = new StringBuilder();
         sbMd = new StringBuilder();
         sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>bookFido Catalog</title>\r\n</head>\r\n<body>\r\n");
@@ -5401,6 +6089,7 @@ class bookFido
             if (sLibrary == "Kindle") appendKindleEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
             if (sLibrary == "Goodreads") appendGoodreadsEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
             if (sLibrary == "Bookshare") appendBookshareEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
+            if (sLibrary == "NLS") appendNlsEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
         }
         sbHtml.Append("</body>\r\n</html>\r\n");
         File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.htm"), sbHtml.ToString(), new UTF8Encoding(true));
@@ -5414,6 +6103,7 @@ class bookFido
     {
         if (sLibrary == "Goodreads") return "gr" + Convert.ToString(dRow["grId"]);
         if (sLibrary == "Bookshare") return "bs" + Convert.ToString(dRow["bsId"]);
+        if (sLibrary == "NLS") return "nls" + Convert.ToString(dRow["nlsId"]);
         return catalogValue(dRow, "asin");
     }
 
@@ -5423,7 +6113,7 @@ class bookFido
     static bool showOpeningDialog(string sIntroText)
     {
         bool bOk;
-        CheckBox checkAudible, checkBookshare, checkGoodreads, checkKindle;
+        CheckBox checkAudible, checkBookshare, checkGoodreads, checkKindle, checkNls;
         TextBox textIntro;
 
         using (LbcDialog dialogOpen = new LbcDialog("Welcome to bookFido", null))
@@ -5434,14 +6124,16 @@ class bookFido
             checkBookshare = dialogOpen.addCheckBox("&Bookshare", true, "The Bookshare My History list");
             checkGoodreads = dialogOpen.addCheckBox("&Goodreads", true, "The Goodreads My Books shelves");
             checkKindle = dialogOpen.addCheckBox("&Kindle", true, "The Kindle library on the Amazon account");
+            checkNls = dialogOpen.addCheckBox("&NLS", true, "The National Library Service reading history, from BARD");
             bOk = dialogOpen.runOkCancel();
             if (!bOk) return false;
             bSearchAudible = checkAudible.Checked;
             bSearchBookshare = checkBookshare.Checked;
             bSearchGoodreads = checkGoodreads.Checked;
             bSearchKindle = checkKindle.Checked;
+            bSearchNls = checkNls.Checked;
         }
-        if (!bSearchAudible && !bSearchBookshare && !bSearchGoodreads && !bSearchKindle)
+        if (!bSearchAudible && !bSearchBookshare && !bSearchGoodreads && !bSearchKindle && !bSearchNls)
         {
             log("No library was checked, so there is nothing to search");
             MessageBox.Show("No library was checked, so there is nothing to search.", "bookFido", MessageBoxButtons.OK, MessageBoxIcon.Information);

@@ -1,31 +1,288 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bookFido</title>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>bookFido</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
 </head>
 <body>
-<main>
-<h1>bookFido</h1>
-<p>bookFido &mdash; the dog that fetches your books &mdash; catalogs an Audible library for screen reader users.  It is part of the Homer Tools series, a sibling of <a href="https://github.com/jamalmazrui/urlFido">urlFido</a>.  It signs into Audible through your own Microsoft Edge profile, walks every page of the library, downloads each companion PDF under a friendly name, converts each PDF to accessible HTML, gathers details about every title from Audible's catalog service, Open Library, and Wikipedia, including author biographies, and writes the catalog to your Downloads folder as Audible_Library.htm and Audible_Library.md (Pandoc-flavored Markdown), with a sortable sheet for every library in one bookFido.xlsx workbook.  Kindle books on the same Amazon account are cataloged alongside, as Kindle_Library.htm, Kindle_Library.md, and Kindle_Library.xlsx, with every field the Kindle library service offers; the Goodreads My Books shelves and the Bookshare My History list are cataloged as Goodreads_Library and Bookshare_Library documents with every field their pages offer; a title present in more than one library shares its gathered details, a shared author's biography is fetched only once, and everything gathered is remembered in bookFido.db beside the program, a SQLite database in the standard DbDo schema, so later runs never search for what is already known and the database opens directly in DbDo.</p>
-<h2>Highlights</h2>
+<h1 id="bookfido">bookFido</h1>
+<p>bookFido is the dog that fetches your books.</p>
+<p>Give it a moment and it will go through every book you own or have
+borrowed, across five services, and hand you back a catalog you can
+actually read: a document, a spreadsheet, and a database, all built for
+a screen reader.</p>
+<p>It was written by a blind developer for blind readers, and it is part
+of the Homer Tools series, a sibling of <a
+href="https://github.com/jamalmazrui/urlFido">urlFido</a>.</p>
+<h2 id="what-it-does">What it does</h2>
+<p>bookFido opens Microsoft Edge, signs in as you, and visits the
+libraries you choose:</p>
 <ul>
-<li>A single portable 64-bit executable for Windows with the .NET Framework 4.8; all libraries are embedded, and nothing is installed.</li>
-<li>Spoken progress throughout: timed message boxes announce each file found or downloaded, with the percentage complete carried in the body of every announcement, and, during detail gathering, a periodic report of the estimated minutes remaining, all focused so your screen reader speaks them in its own voice.</li>
-<li>A state snapshot beside the exe lets later runs skip an unchanged library in seconds, resume an interrupted run, and fill in details a previous run could not reach, without revisiting library pages.</li>
-<li>The catalog document has a table of contents listing every title, an introduction with library statistics and tabulations by genre, rating, and listening progress, every title's details with the publisher's summary last, and appendixes indexing the library by author, narrator, series, progress, genre, publisher, and rating, ending with About the Authors, including biographies from Wikipedia and Open Library when reliable ones exist.</li>
-<li>The spreadsheet follows screen-reader-friendly conventions: one region at cell A1, a bold header row, a ColumnTitle01 workbook name so JAWS announces column headers, capped column widths, and a truly empty cell wherever a value is unknown.</li>
-<li>Titles order by title, ignoring a leading A, An, or The; authors order by surname.</li>
-<li>Polite web citizenship: one request per second per service, honoring rate-limit responses, with a circuit breaker that skips a service that has closed its door for the day.</li>
-<li>The log file is a debugging aid only: paths under your user profile are scrubbed to a placeholder before writing.</li>
+<li><strong>Audible</strong> — every title in your library, plus each
+companion PDF downloaded under a friendly name and converted to
+accessible HTML.</li>
+<li><strong>Kindle</strong> — every book on the same Amazon
+account.</li>
+<li><strong>Goodreads</strong> — every shelf of your My Books list, with
+your ratings, dates, and reviews.</li>
+<li><strong>Bookshare</strong> — your whole download history.</li>
+<li><strong>NLS</strong> — your reading history from BARD, the National
+Library Service’s talking-book and braille collection.</li>
 </ul>
-<h2>Building</h2>
-<p>Run buildbookFido.cmd in the same folder as bookFido.cs.  The script fetches pinned NuGet packages on first build, embeds them, prefers the Roslyn compiler with a .NET Framework fallback, embeds bookFido.ico when present, and writes buildbookFido.log.</p>
-<h2>Using</h2>
-<p>Run bookFido.exe, read the opening explanation, and choose OK.  Sign into Audible in the Edge window if asked.  The program does the rest, announcing as it goes, and opens the finished catalog in your browser.  Cancel any time; progress is saved every two minutes, and the next run continues where this one left off.</p>
-<h2>License</h2>
-<p>MIT.  The embedded libraries retain their own licenses, including PdfPig (Apache 2.0) and EPPlus 4 (LGPL).</p>
-</main>
+<p>Then it fills in what the libraries leave out: publication years,
+publishers, descriptions, and author biographies from Open Library and
+Wikipedia.</p>
+<h2 id="what-you-get">What you get</h2>
+<p>In your Downloads folder, after every run:</p>
+<ul>
+<li><strong>bookFido.htm and bookFido.md</strong> — one combined catalog
+of every book from every library, in order by title, each with the
+publication year in parentheses and all the fields its own library
+offers. This is the document that opens when the run finishes.</li>
+<li><strong>A document for each library</strong> — Audible_Library,
+Kindle_Library, Goodreads_Library, Bookshare_Library, and NLS_Library,
+each in both HTML and Pandoc-flavored Markdown, with a table of
+contents, an introduction with statistics, every book’s details, and
+appendixes indexing the library by author, narrator, series, genre,
+publisher, subject, and rating, ending with About the Authors.</li>
+<li><strong>bookFido.xlsx</strong> — one workbook with a sortable sheet
+for each library.</li>
+</ul>
+<p>And beside the program, <strong>bookFido.db</strong>, a SQLite
+database in the standard <a
+href="https://github.com/jamalmazrui/DbDo">DbDo</a> schema, holding your
+books, authors, and publishers as related records you can browse and
+query in DbDo itself.</p>
+<h2 id="why-it-is-pleasant-to-use">Why it is pleasant to use</h2>
+<ul>
+<li><strong>It talks.</strong> Timed message boxes announce each page
+found, each book cataloged, and the estimated minutes remaining, each
+one focused so your screen reader speaks it in its own voice.</li>
+<li><strong>It remembers.</strong> Everything gathered is kept in
+bookFido.db and a state snapshot, so a second run never looks up what it
+already knows. A first full catalog can take hours; the runs after it
+take minutes.</li>
+<li><strong>It is polite to the web.</strong> One request per second per
+service, rate-limit responses honored, and a circuit breaker that steps
+back from a service that has closed its door for the day.</li>
+<li><strong>It respects your conventions.</strong> Titles order by
+title, ignoring a leading A, An, or The; authors order by surname.
+Spreadsheets carry one region at cell A1, a bold header row, and a
+ColumnTitle01 name so JAWS announces column headers, with a truly empty
+cell wherever a value is unknown.</li>
+<li><strong>It knows a book from its twin.</strong> A title you own in
+more than one library is recognized as one work, so its details are
+gathered once and shared, and an author’s biography is fetched only once
+however many books they wrote.</li>
+<li><strong>It keeps your business private.</strong> The log is a
+debugging aid only, and paths under your user profile are scrubbed to a
+placeholder before anything is written.</li>
+</ul>
+<h2 id="how-bookfido-reaches-your-libraries">How bookFido reaches your
+libraries</h2>
+<p>bookFido reads the same web pages you would read yourself. It drives
+Microsoft Edge, signs in as you, and gathers what is on the pages each
+library shows to its own account holder — your library, your shelves,
+your download history. These are pages made available to you once you
+are logged in; nothing is collected anonymously, and nothing is taken
+that you could not open by hand a page at a time.</p>
+<p>It reads politely. Requests to any one service are spaced about a
+second apart, with longer pauses for the reference sites, and when a
+service asks bookFido to slow down it waits for as long as it is asked.
+If a service declines repeatedly, bookFido stops asking it for the rest
+of the run. The point is to be an unremarkable visitor: your own
+reading, fetched at a human pace, without crowding anyone else off the
+server.</p>
+<p>Nothing about your libraries leaves your computer. bookFido sends no
+book, author, list, or account information anywhere. It fetches pages
+from the libraries you chose, looks up publication details and author
+biographies from Open Library and Wikipedia by title and author name,
+and writes everything it learns to your own Downloads folder and to
+bookFido.db beside the program. There is no account to create, no server
+behind it, and no telemetry of any kind.</p>
+<h2 id="using-it">Using it</h2>
+<p>Run bookFido.exe. An opening dialog explains what will happen and
+offers a checkbox for each library — Audible, Bookshare, Goodreads,
+Kindle, and NLS — all checked to begin with. Uncheck any you would
+rather skip this time; their books stay in your catalog from the last
+run either way.</p>
+<p>Choose OK, and if a library asks you to sign in, do so in the Edge
+window that opens and then answer the prompt. Each sign-in is usually
+needed only once, because bookFido keeps its own browser profile.</p>
+<p>The rest is automatic. You can cancel at any point: progress is saved
+every couple of minutes, and the next run continues where this one
+stopped.</p>
+<p>A single portable 64-bit executable for Windows with the .NET
+Framework 4.8. Everything it needs is embedded; nothing is
+installed.</p>
+<h2 id="building">Building</h2>
+<p>Run buildbookFido.cmd in the same folder as bookFido.cs. The script
+takes the next version from version.txt, fetches pinned NuGet packages
+on first build, embeds them, prefers the Roslyn compiler with a .NET
+Framework fallback, embeds bookFido.ico when present, and writes
+buildbookFido.log.</p>
+<h2 id="license">License</h2>
+<p>MIT. The embedded libraries retain their own licenses, including
+PdfPig (Apache 2.0) and EPPlus 4 (LGPL).</p>
 </body>
 </html>

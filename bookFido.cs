@@ -40,7 +40,7 @@
 // direct HTTP.  The next-page link is followed until the next button carries
 // the bc-button-disabled class, which marks the last page.  Guards against
 // infinite loops: a visited-url set and a maximum page count.  Every step is
-// logged to bookFido.log beside the exe.  Each download is announced
+// logged to the session log in %LOCALAPPDATA%\bookFido\logs.  Each download is announced
 // with a timed message box whose title is the base file name, which JAWS
 // speaks automatically.  Because the program launched Edge itself, it closes
 // Edge again when it finishes.
@@ -120,6 +120,8 @@ class bookFido
 {
     // Constant definitions
     const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 8000, iProbeTimeoutMs = 2000, iRenderWaitMs = 20000, iSignInWaitMs = 6000, iTabWaitMs = 4000, iNlsPageSize = 250, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
+    // The GitHub owner whose bookFido releases F11 asks about.
+    const string c_sGitHubOwner = "jamalmazrui";
     const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = BuildVersion.Version, sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
     const uint iMbOk = 0x00000000, iMbSetForeground = 0x00010000, iMbTopmost = 0x00040000;
 
@@ -132,7 +134,6 @@ class bookFido
     static HashSet<string> setCatalogAsins = new HashSet<string>();
     const string sNlsHistoryUrl = "https://nlsbard.loc.gov/bard2-web/reading-history/", sNlsRootUrl = "https://nlsbard.loc.gov/bard2-web/", sNlsLoginUrl = "https://nlsbard.loc.gov/bard2-web/login/", sNlsOrigin = "https://nlsbard.loc.gov";
     const string sKindleLibraryUrl = "https://read.amazon.com/kindle-library", sKindleSearchUrl = "https://read.amazon.com/kindle-library/search?query=&libraryType=BOOKS&sortType=acquisition_desc&querySize=50";
-    static bool bKindleHarvested = false;
     static object[] aSavedKindleRows = null;
     static List<Dictionary<string, object>> lCatalog = new List<Dictionary<string, object>>();
     static List<Dictionary<string, object>> lKindleCatalog = new List<Dictionary<string, object>>();
@@ -234,17 +235,28 @@ class bookFido
         int iExitCode;
 
         AppDomain.CurrentDomain.AssemblyResolve += resolveEmbeddedAssembly;
+        // ONE SESSION LOG PER RUN, from Homer's Log: %LOCALAPPDATA%\bookFido\logs\
+        // bookFido-yyyyMMdd-HHmmss.log, the environment already in its header.
+        // A run that is cancelled no longer empties the log of the run before,
+        // because each run has a file of its own.
+        Log.start("bookFido");
+        sLogFilePath = Log.path;
+        // F11 in the opening dialog, and the version section of its Help box,
+        // ask GitHub through this whether a newer bookFido exists.
+        Elevate.configure(c_sGitHubOwner, "bookFido", sVersionText);
         iExitCode = 0;
         try { iExitCode = mainAsync().GetAwaiter().GetResult(); }
         catch (Exception oException)
         {
             log("Fatal error: " + oException.ToString());
             focusWhenShown("bookFido error");
-            MessageBox.Show("bookFido stopped with a fatal error.  See bookFido.log for details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("bookFido stopped with a fatal error.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             iExitCode = 1;
         }
         shutdownEdge();
         writeSummarySections();
+        log("Exit code " + iExitCode);
+        Log.close();
         return iExitCode;
     }
 
@@ -259,8 +271,6 @@ class bookFido
         DialogResult dialogResultAnswer;
         List<string> lRetry;
 
-        sLogFilePath = Path.Combine(dataDir(), "bookFido.log");
-        File.WriteAllText(sLogFilePath, "", new UTF8Encoding(true));
         dtRunStart = DateTime.Now;
         log("bookFido started, version " + sVersionText);
         log("Embedded assemblies in this exe: " + string.Join(", ", Assembly.GetExecutingAssembly().GetManifestResourceNames()));
@@ -269,9 +279,9 @@ class bookFido
         sIntro = "This is bookFido version " + sVersionText + ".  bookFido visits every page of your Audible library and gathers what it finds there.  " +
             "It downloads the companion PDF files that publishers attach to audiobooks, naming each by its book title, creates a screen-reader-friendly .htm version of every PDF, and it builds an accessible catalog of your whole library, " +
             "with a heading for every title, its details enriched from Audible's catalog service, Open Library, and Wikipedia (this gathering step takes a few minutes for a large library), and appendixes indexed by author, narrator, series, publisher, rating, and more, saved as Audible_Library.htm and Audible_Library.md in your Downloads folder, with a sortable spreadsheet for every library as its own sheet of one bookFido.xlsx workbook.  Kindle books on the same Amazon account, the Goodreads My Books shelves, the Bookshare My History list, and the NLS reading history from BARD are cataloged alongside, as Kindle_Library, Goodreads_Library, Bookshare_Library, and NLS_Library files, and a title present in more than one library shares its gathered details without extra requests.  " +
-            "A note on announcements: this program works to keep each announcement window focused so your screen reader speaks it, but Windows can occasionally withhold focus from a background program; the complete play-by-play is always in bookFido.log.  " +
+            "A note on announcements: this program works to keep each announcement window focused so your screen reader speaks it, but Windows can occasionally withhold focus from a background program; the complete play-by-play is always in the session log, in the logs folder under %LOCALAPPDATA%\\bookFido.  " +
             "It opens Microsoft Edge at audible.com and uses your existing Audible login when possible.  " +
-            "Progress is spoken through brief message boxes, and a full record is written to bookFido.log beside the program.  " +
+            "Progress is spoken through brief message boxes, and a full record of each run is written to its own session log.  " +
             "When it finishes, it reports totals, opens the catalog in your web browser, and closes the Edge window it opened.  " +
             "Check the libraries to search below; all are checked to begin with.  Then choose OK to begin, or Cancel to exit.";
         if (!showOpeningDialog(sIntro)) { log("The user chose Cancel at the introduction, so exiting"); return 0; }
@@ -316,7 +326,7 @@ class bookFido
         {
             log("The Edge debugging port never became reachable");
             focusWhenShown("bookFido error");
-            MessageBox.Show("Microsoft Edge did not start with its debugging port.  See bookFido.log for details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Microsoft Edge did not start with its debugging port.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
         await connectCdp();
@@ -338,7 +348,7 @@ class bookFido
         {
             log("The library page could not be reached after " + iLoginTryMax + " attempts");
             focusWhenShown("bookFido error");
-            MessageBox.Show("The Audible library page could not be reached.  See bookFido.log for details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("The Audible library page could not be reached.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             await closeEdgeAsync();
             return 1;
         }
@@ -519,8 +529,8 @@ class bookFido
             (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
             (lNlsCatalog.Count > 0 ? "NLS reading history: " + lNlsCatalog.Count + " books cataloged as NLS_Library.htm and NLS_Library.md.  " : "") +
             "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
-            (bDbUpdated ? "Gathered details were remembered in bookFido.db beside the program, in the standard DbDo schema.  " : "The database was not used this run" + (sDbStatus == "" ? "" : ": " + sDbStatus) + ".  ") +
-            "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  See bookFido.log for details.";
+            (bDbUpdated ? "Gathered details were remembered in bookFido.db, in the data folder under %LOCALAPPDATA%\\bookFido, in the standard DbDo schema.  " : "The database was not used this run" + (sDbStatus == "" ? "" : ": " + sDbStatus) + ".  ") +
+            "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.";
         log(sSummary);
         writeSummarySections();
         // Edge is closed before the results box appears, so the box faces no
@@ -551,11 +561,9 @@ class bookFido
         lock (oLogLock)
         {
             Console.WriteLine(sLine);
-            if (sLogFilePath != "")
-            {
-                try { File.AppendAllText(sLogFilePath, sLine + "\r\n", utf8NoBom); }
-                catch (Exception) { }
-            }
+            // Through Homer's Log, which holds its session file open with
+            // AutoFlush, so every line is on disk the moment it is written.
+            Log.line(sLine);
         }
     }
 
@@ -1490,7 +1498,7 @@ class bookFido
         else showTimedMessageBox("Companions: " + iPresent + " present, " + (lDownloaded.Count - iDownloadedBefore) + " downloaded, " + iHtmMade + " HTML made" + (iKnownDead > 0 ? ", " + iKnownDead + " known unavailable" : ""));
     }
 
-    // The state file lives beside the exe and holds a machine-readable
+    // The state file lives in the data folder (see dataDir) and holds a machine-readable
     // snapshot of everything a run learned: the page count, the first
     // page's title order, the fully enriched catalog rows with their
     // per-service checked markers, the author biographies with their
@@ -1522,28 +1530,64 @@ class bookFido
         }
     }
 
-    // The directory for the program's own files: the log, the state
-    // snapshot, and diagnostic pages.  The exe's folder is used when it is
-    // writable, preserving portable behavior; installed under Program
-    // Files, which refuses writes, everything moves to LocalAppData.
+    // The directory for the program's own files: the state snapshot, the
+    // database, and diagnostic pages.  Since 1.2 it is the Homer data folder,
+    // %LOCALAPPDATA%\bookFido\data, wherever the program runs from: the
+    // program itself lives in an exec folder now, installed or built, and
+    // that is no place for a library's worth of gathered details.
+    //
+    // Files an earlier version kept elsewhere are carried over the first
+    // time: beside the program (a portable copy, or the project folder a
+    // build used to write the program into, one level above exec now) and
+    // %LOCALAPPDATA%\bookFido itself (an installed copy).  Where several
+    // copies exist, the newest is taken, and it is MOVED, so no stale copy
+    // is left to be mistaken for the real one.
     static string dataDir()
     {
-        string sFormerDataDir, sProbePath;
+        string sFormerDataDir, sHere, sLocal;
+        List<string> lCandidates;
 
         if (sDataDir != "") return sDataDir;
-        sDataDir = AppDomain.CurrentDomain.BaseDirectory;
-        try
+        sDataDir = Paths.data();
+        sHere = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+        sLocal = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "bookFido");
+        sFormerDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GetAudibleInfo");
+        lCandidates = new List<string>();
+        lCandidates.Add(sHere);
+        if (string.Equals(Path.GetFileName(sHere), "exec", StringComparison.OrdinalIgnoreCase)) lCandidates.Add(Path.GetDirectoryName(sHere));
+        lCandidates.Add(sLocal);
+        lCandidates.Add(sFormerDataDir);
+        foreach (string sName in new string[] { "bookFido.json", "bookFido.db", "GetAudibleInfo.json", "GetAudibleInfo_state.json" })
         {
-            sProbePath = Path.Combine(sDataDir, "bookFido_probe.tmp");
-            File.WriteAllText(sProbePath, "probe");
-            File.Delete(sProbePath);
-        }
-        catch (Exception)
-        {
-            sDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "bookFido");
-            sFormerDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GetAudibleInfo");
-            if (!Directory.Exists(sDataDir) && Directory.Exists(sFormerDataDir)) { try { Directory.Move(sFormerDataDir, sDataDir); log("Migrated the program data folder from its previous name"); } catch (Exception) { } }
-            Directory.CreateDirectory(sDataDir);
+            string sBest, sTarget;
+            DateTime dtBest;
+
+            sTarget = Path.Combine(sDataDir, sName);
+            if (File.Exists(sTarget)) continue;
+            sBest = "";
+            dtBest = DateTime.MinValue;
+            foreach (string sFolder in lCandidates)
+            {
+                string sCandidate;
+
+                sCandidate = Path.Combine(sFolder, sName);
+                try
+                {
+                    if (File.Exists(sCandidate) && File.GetLastWriteTime(sCandidate) > dtBest) { sBest = sCandidate; dtBest = File.GetLastWriteTime(sCandidate); }
+                }
+                catch (Exception) { }
+            }
+            if (sBest == "") continue;
+            try
+            {
+                File.Move(sBest, sTarget);
+                log("Carried " + sName + " over from " + Path.GetDirectoryName(sBest) + " into the data folder " + sDataDir);
+            }
+            catch (Exception oException)
+            {
+                log("Could not carry " + sName + " over from " + sBest + " (" + oException.Message + "), so it is copied instead");
+                try { File.Copy(sBest, sTarget); } catch (Exception) { }
+            }
         }
         return sDataDir;
     }
@@ -2862,10 +2906,9 @@ class bookFido
         int iFinishedCount, iLongestMinutes, iMostRatings, iOldestYear, iRatedCount, iRowMinutes, iRowRatings, iRowYear, iTotalMinutes;
         string sLongestTitle, sMostRatedTitle, sOldestTitle;
         Dictionary<string, int> dAuthorMinutes;
-        string sAsin, sHtmPath, sIntroHtml, sIntroMd, sMdPath, sProgress, sStats, sTitle, sUrl;
+        string sAsin, sHtmPath, sIntroHtml, sIntroMd, sMdPath, sStats, sTitle;
         Dictionary<string, List<string[]>> dByAuthor, dByGenre, dByNarrator, dByProgress, dByPublisher, dByRating, dBySeries;
         List<Dictionary<string, object>> lOrdered;
-        List<string[]> lPairs;
         StringBuilder sbHtml, sbMd;
 
         if (lCatalog.Count == 0) { log("No catalog rows were harvested, so the library files were not written"); return ""; }
@@ -4616,8 +4659,6 @@ class bookFido
         string sId, sIntroText, sStats, sTitle;
         Dictionary<string, List<string[]>> dByAuthor, dByFormat, dByPublisher, dByStatus;
         List<Dictionary<string, object>> lOrdered;
-        List<string> lExtraLabels;
-        List<string[]> lPairs;
         StringBuilder sbHtml, sbMd;
 
         dByAuthor = new Dictionary<string, List<string[]>>();
@@ -4922,7 +4963,7 @@ class bookFido
 
 
     // ---- The bookFido.db database ---------------------------------------
-    // Metadata already captured lives in bookFido.db beside the program, in
+    // Metadata already captured lives in bookFido.db in the data folder, in
     // the standard DbDo schema, so the same database opens directly in DbDo
     // and nothing already known is ever searched for again.  The engine is
     // Microsoft's SQLite library, which needs no ADO provider and carries a
@@ -4959,7 +5000,7 @@ class bookFido
                 log("Batteries_V2 could not initialize (" + oInit.Message + "), so the provider is registered directly");
                 SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
             }
-            sDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bookFido.db");
+            sDbPath = Path.Combine(dataDir(), "bookFido.db");
             log("Opening the database file: " + sDbPath);
             connectionDb = new SqliteConnection("Data Source=" + sDbPath);
             connectionDb.Open();
@@ -5498,8 +5539,6 @@ class bookFido
         string sId, sIntroText, sRatingText, sStats, sTitle;
         Dictionary<string, List<string[]>> dByAuthor, dByPublisher, dByRating, dByShelf;
         List<Dictionary<string, object>> lOrdered;
-        List<string> lExtraLabels;
-        List<string[]> lPairs;
         StringBuilder sbHtml, sbMd;
 
         dByAuthor = new Dictionary<string, List<string[]>>();
@@ -5707,7 +5746,6 @@ class bookFido
                 if (sToken == "") break;
                 await Task.Delay(400);
             }
-            bKindleHarvested = true;
             log("Kindle library harvest complete: " + lKindleCatalog.Count + " books, of which " + countRowsWithKey(lKindleCatalog, "twinKey") + " share details with the Audible catalog");
             showTimedMessageBox("Kindle library: " + lKindleCatalog.Count + " books found");
             savePeriodically(true);
@@ -5908,11 +5946,9 @@ class bookFido
     static void buildKindleFiles(string sDownloadDir)
     {
         int iFinishedCount, iSampleCount;
-        string sAmazonUrl, sAsin, sIntroText, sProgress, sStats, sTitle;
+        string sAsin, sIntroText, sProgress, sStats, sTitle;
         Dictionary<string, List<string[]>> dByAuthor, dByOrigin, dByProgress, dByPublisher;
         List<Dictionary<string, object>> lOrdered;
-        List<string> lExtraKeys;
-        List<string[]> lPairs;
         StringBuilder sbHtml, sbMd;
 
         dByAuthor = new Dictionary<string, List<string[]>>();
@@ -6125,6 +6161,21 @@ class bookFido
             checkGoodreads = dialogOpen.addCheckBox("&Goodreads", true, "The Goodreads My Books shelves");
             checkKindle = dialogOpen.addCheckBox("&Kindle", true, "The Kindle library on the Amazon account");
             checkNls = dialogOpen.addCheckBox("&NLS", true, "The National Library Service reading history, from BARD");
+            // F11: is there a newer bookFido on the web?  (Elevate sounds like
+            // eleven.)  Claimed before any control sees the key.  When the
+            // setup program starts, this copy steps aside.
+            dialogOpen.commandKey = delegate(Keys keyPressed)
+            {
+                if (keyPressed != Keys.F11) return false;
+                log("F11: checking the web for a newer version");
+                if (Elevate.offer(dialogOpen.form))
+                {
+                    log("F11: the setup program was started, so the dialog closes");
+                    dialogOpen.form.DialogResult = DialogResult.Cancel;
+                    dialogOpen.form.Close();
+                }
+                return true;
+            };
             bOk = dialogOpen.runOkCancel();
             if (!bOk) return false;
             bSearchAudible = checkAudible.Checked;

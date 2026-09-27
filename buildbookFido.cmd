@@ -1,281 +1,741 @@
 @echo off
+rem ===================================================================
+rem buildbookFido.cmd -- build bookFido.exe from bookFido.cs and the Homer C#
+rem classes in C:\HomerDev.
+rem
+rem bookFido is a Windows program that catalogs five book libraries by
+rem driving the system's Microsoft Edge over the DevTools protocol, and keeps
+rem what it learns in a SQLite database. This build is the kit's C# template,
+rem Templates\build_APP_.cmd, with its SETTINGS filled in for bookFido, plus
+rem two sections of its own: the NuGet libraries bookFido embeds (PdfPig,
+rem EPPlus, Microsoft.Data.Sqlite and their helpers, fetched at pinned
+rem versions), and the carry-over from the layout before the kit.
+rem
+rem IT KEEPS THE SAME CONTRACT AS THE PYTHON BUILD, buildbookFidoPy.cmd,
+rem clause for clause (kit 1.43.3):
+rem   - finds the kit, and stops with a plain message when the kit is older
+rem     than kitNeeded, telling a parse failure from an old kit;
+rem   - version.txt is the single source of truth: stepped on every build
+rem     (nobump keeps it), seeded when missing from the app's own number or
+rem     one past its newest release tag, never from 1.0.0 over a released
+rem     app, and written into Version.cs as BuildVersion.Version;
+rem   - the program goes to exec\, as in the installed tree;
+rem   - the kit's classes are NOT copied: each module named in homerModules
+rem     is compiled straight from C:\HomerDev\CSharp, and a stale copy of a
+rem     kit class at the top of the project is deleted once the kit's is here;
+rem   - the compiler is Roslyn, found with vswhere or installed with winget
+rem     as the free Build Tools. The Framework's own csc stops at C# 5 and
+rem     cannot compile the kit, so it is never used;
+rem   - the kit tools this app uses are refreshed into scripts\ and retired
+rem     ones deleted, saying so when the kit lacks one;
+rem   - documents: every .md at the top and in help\ gets its .htm when the
+rem     .htm is missing or older; then fixEncoding puts every file the
+rem     project names into the Homer encoding;
+rem   - every file in help\ and every scripts\install*.cmd must be named by
+rem     a Source: line of bookFido_setup.iss, or the build stops;
+rem   - the installer is compiled with /DHomerDev=<kit>;
+rem   - one log per run: logs\bookFido-build-yyyyMMdd-HHmmss.log. The console
+rem     says briefly what is happening; the log holds every command and
+rem     its exit code.
+rem
+rem   buildbookFido          steps the version, then builds
+rem   buildbookFido nobump   keeps the current number
+rem
+rem A running copy of the program is never closed. The build says so and
+rem stops only when the copy running is exec\bookFido.exe from THIS project,
+rem which cannot be replaced while it runs; an installed copy under Program
+rem Files is no concern of the build's.
+rem
+rem PARSE-TIME PITFALL: the variable NAME ProgramFiles(x86) contains
+rem parentheses, and cmd.exe scans a parenthesised block for its closing
+rem paren BEFORE expanding variables. The name is copied into progFiles86
+rem outside any block, and only !progFiles86! is used inside one.
+rem ===================================================================
+
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-rem ====================================================================
-rem buildbookFido.cmd -- builds bookFido.exe as a single
-rem 64-bit GUI exe (no console window) for .NET Framework 4.8.
-rem
-rem All output is captured to buildbookFido.log beside this
-rem script: the script relaunches itself once with output redirected,
-rem then types the log to the console when the build ends.
-rem
-rem The PDF-to-HTML feature uses the UglyToad.PdfPig library
-rem (Apache-2.0, pure managed code, no Office dependency).  On first
-rem build, the PdfPig assemblies and their System helper assemblies
-rem are fetched from nuget.org (internet needed that first time only),
-rem then embedded into the exe as manifest resources with csc
-rem /resource, the same single-file technique 2htm uses for Markdig.
-rem Each nupkg is saved with a .zip extension because PowerShell's
-rem Expand-Archive refuses any other extension -- the exact detail
-rem that made the first version of this script fail silently.
-rem The resulting bookFido.exe needs NO dll files at runtime.
-rem
-rem A Roslyn csc is preferred when present; the in-box .NET Framework
-rem compiler is accepted as a fallback because the source is kept
-rem compatible with C# 5.
-rem ====================================================================
 
-rem ---- Log wrapper: relaunch once with all output going to the log ----
-if not defined bookFidoBuildLogging (
-    set "bookFidoBuildLogging=1"
-    cmd /c ""%~f0"" %* > "buildbookFido.log" 2>&1
-    set "iExitCode=!errorlevel!"
-    type "buildbookFido.log"
-    echo [INFO] This output was also saved to buildbookFido.log
-    exit /b !iExitCode!
-)
-echo [INFO] Build started %date% %time%
+set "app=bookFido"
+set "progFiles86=%ProgramFiles(x86)%"
+set "progFiles=%ProgramFiles%"
 
-rem ---- version: version.txt is the SINGLE source of truth ----
-rem The version lives in version.txt: one line, nothing else.  It is incremented
-rem here, BEFORE anything is compiled, because both the program and the installer
-rem bake the number in:
-rem   * this script generates Version.cs from it, so the running program reports it
-rem   * bookFido_setup.iss reads version.txt directly (see its #define sAppVersion),
-rem     so the installer is stamped with it
-rem   * tagRelease tags the release with it
-rem All three therefore always agree, which is what Elevate Version (F11) needs.
-rem The .iss contains NO version number, so an old copy of it cannot rewind one.
-rem The bump makes NO network call; tagRelease owns the already-released check,
-rem where a stall is visible and interruptible.
-rem
-rem Pass "nobump" to recompile without taking a new number: buildbookFido.cmd nobump
-if not exist "version.txt" (
-    echo [ERROR] version.txt not found. It must hold the current version, e.g. 1.1.0
-    exit /b 1
-)
-set "sVer="
-set /p sVer=<version.txt
-rem strip stray spaces; a version number never contains one
-set "sVer=!sVer: =!"
-if "!sVer!"=="" (
-    echo [ERROR] version.txt is empty.
-    exit /b 1
-)
-if /i "%~1"=="nobump" (
-    echo [INFO] Version: !sVer! ^(nobump: keeping the current number^)
-) else (
-    call :takeNextVersion
-)
+rem ---- SETTINGS: the part an app edits -------------------------------
+rem The oldest kit with everything this build uses.
+set "kitNeeded=1.43.19"
+rem The number to start from when version.txt is missing. A newer release
+rem tag, if the repository has one, wins; so does nothing lower than this.
+set "seedVersion=1.2.0"
+rem winexe for a program with only windows; exe for one that writes to the
+rem console, even if it also opens a dialog.
+set "cscTarget=winexe"
+rem The kit classes the program uses, alphabetical. Lbc needs Elevate (its
+rem Help box offers the update), Log, Paths, Say and Util; Log needs Paths and
+rem Say; Mdi needs KeyMap. Each is compiled from C:\HomerDev\CSharp.
+set "homerModules=Elevate Inix Lbc Log Paths Say Util Web"
+rem The app's own sources beside bookFido.cs, if any, space separated.
+set "appSources="
+rem Files embedded in the program as resources, space separated: a sound, a
+rem native DLL the program extracts itself.
+set "csResources="
+rem NVDA's controller client, the DLL Say.cs speaks to NVDA through.
+rem   exec   fetched and put beside the program in exec (the usual choice;
+rem          the installer ships exec\*.dll)
+rem   embed  fetched and embedded as a resource, for a program that extracts
+rem          and loads it itself (urlFido)
+rem   (empty) not used
+rem bookFido speaks through timed message boxes that the screen reader reads,
+rem and has never shipped the client; so none here.
+set "nvdaClient="
+rem NuGet packages the program references, as id:assembly pairs, such as
+rem Markdig:Markdig.dll. Each is fetched into exec and referenced there.
+set "nugetPackages="
+rem The kit tools this app uses, refreshed into scripts\ on every build.
+rem Name each; add one the day it is used (installCommon.cmd for install
+rem scripts written in cmd, buildTutorials and its fellows once a walk exists).
+set "kitTools=check.cmd check.py fixEncoding.cmd fixEncoding.py push.cmd release.cmd release.ps1 tidy.cmd tidy.py unpushed.cmd unpushed.py"
+set "useDocs=1"
+set "useInstaller=1"
+set "useVersionSteps=1"
+rem ---- end of SETTINGS -------------------------------------------------
 
-rem ---- generate Version.cs from version.txt ----
-rem Version.cs is generated output: do not edit it, and keep it out of git.
+rem Retired and renamed kit scripts an app may still carry: deleted.
+set "retiredTools=checkHomerApp.cmd checkHomerApp.py cleanDir.cmd cleanDir.py gitPush.cmd gitRelease.cmd gitUnpushed.cmd gitUnpushed.py homerFinish.cmd homerInstall.cmd homerPolicy.py homerTidy.cmd homerTidy.py installTools.cmd sayTutorial.cmd sayTutorial.py tagRelease.cmd tagRelease.ps1 tidyRepo.cmd tidyRepo.py"
+rem Kit classes an app used to carry its own copy of. Once the kit's is here,
+rem a copy at the top of the project is deleted: copies drift, and every one
+rem found so far had.
+set "kitClasses=Elevate.cs Inix.cs inixVert.cs KeyMap.cs KeyName.cs Lbc.cs Log.cs Mdi.cs Ollama.cs Paths.cs PdfRead.cs Say.cs Util.cs Web.cs"
+
+rem EVERY SESSION ITS OWN LOG, IN logs\: <App>-build-yyyyMMdd-HHmmss.log. An
+rem alphabetical sort is then a chronological one. wmic is gone from Windows
+rem 11, so the stamp comes from PowerShell.
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "sStamp=%%i"
+if not exist "logs" mkdir "logs"
+set "log=%CD%\logs\%app%-build-%sStamp%.log"
+> "%log%" echo %app% build started %DATE% %TIME%
+>> "%log%" echo Script: %~f0
+>> "%log%" echo Folder: %CD%
+>> "%log%" echo Command line: %0 %*
+>> "%log%" echo User: %USERNAME% on %COMPUTERNAME%
+for /f "delims=" %%v in ('ver') do >> "%log%" echo Windows: %%v
+>> "%log%" echo Settings: kitNeeded=!kitNeeded! seedVersion=!seedVersion! cscTarget=!cscTarget! nvdaClient=!nvdaClient!
+>> "%log%" echo Settings: homerModules=!homerModules!
+>> "%log%" echo Settings: appSources=!appSources! csResources=!csResources! nugetPackages=!nugetPackages!
+>> "%log%" echo Settings: kitTools=!kitTools!
+>> "%log%" echo Settings: useDocs=!useDocs! useInstaller=!useInstaller! useVersionSteps=!useVersionSteps!
+echo Building %app%. The log is %log%
+
+rem ---- the Homer Development Kit -------------------------------------
+set "homerDev="
+if defined HomerDev if exist "%HomerDev%\CSharp\Lbc.cs" set "homerDev=%HomerDev%"
+if not defined homerDev if exist "C:\HomerDev\CSharp\Lbc.cs" set "homerDev=C:\HomerDev"
+if not defined homerDev if exist "%CD%\CSharp\Lbc.cs" set "homerDev=%CD%"
+if not defined homerDev (
+  echo %app% needs the Homer Development Kit and cannot find it.
+  echo Unzip HomerDev.zip into C:\HomerDev, or set the HomerDev environment variable.
+  >> "%log%" echo ERROR: no kit found in %%HomerDev%%, C:\HomerDev or %CD%
+  goto :failed
+)
+rem READ THE KIT'S VERSION WITHOUT ANYTHING INVISIBLE. A byte order mark or a
+rem trailing space rides along with "set /p", and "kit 1.40.1 is older than
+rem 1.40.1" followed on 25 September 2026. PowerShell reads and trims.
+set "homerVer=0.0.0"
+if exist "!homerDev!\version.txt" (
+  for /f "usebackq delims=" %%v in (`powershell -NoProfile -Command "(Get-Content -Raw -LiteralPath '!homerDev!\version.txt').Trim([char]0xFEFF, ' ', [char]13, [char]10)"`) do set "homerVer=%%v"
+)
+>> "%log%" echo Kit: !homerDev! version !homerVer!, needed !kitNeeded!
+powershell -NoProfile -Command "$h='!homerVer!'.Trim(); $n='!kitNeeded!'.Trim(); try { if ([version]$h -lt [version]$n) { exit 1 } else { exit 0 } } catch { exit 2 }"
+if errorlevel 2 (
+  echo The kit's version.txt at !homerDev! does not hold a version number.
+  >> "%log%" echo ERROR: kit version "!homerVer!" does not parse
+  goto :failed
+)
+if errorlevel 1 (
+  echo %app% needs HomerDev !kitNeeded! or later, and the kit is !homerVer!.
+  echo Unzip HomerDev.zip into C:\HomerDev, then build again.
+  >> "%log%" echo ERROR: kit !homerVer! is older than !kitNeeded!
+  goto :failed
+)
+echo Kit !homerVer! at !homerDev!
+
+rem ---- version: version.txt is the single source of truth -----------
+set "bSeeded="
+if not exist "version.txt" call :seedVersion
+if not exist "version.txt" goto :failed
+set "ver="
+for /f "usebackq delims=" %%v in (`powershell -NoProfile -Command "(Get-Content -Raw -LiteralPath 'version.txt').Trim([char]0xFEFF, ' ', [char]13, [char]10)"`) do set "ver=%%v"
+if "!ver!"=="" (
+  echo version.txt is empty.
+  >> "%log%" echo ERROR: version.txt is empty
+  goto :failed
+)
+if defined bSeeded goto :keepVersion
+if /i "%~1"=="nobump" goto :keepVersion
+if not defined useVersionSteps goto :keepVersion
+call :takeNextVersion
+goto :haveVersion
+
+:keepVersion
+echo Version !ver!, kept
+>> "%log%" echo Version: !ver! (kept: seeded this run, nobump, or no version steps)
+
+:haveVersion
+rem Generated output: do not edit it, and do not commit it. A const, so the
+rem program may build other constants from it (a user agent, say).
 > Version.cs echo // Generated by buildbookFido.cmd from version.txt.  Do not edit; do not commit.
 >> Version.cs echo public static class BuildVersion
 >> Version.cs echo {
->> Version.cs echo     public const string Version = "!sVer!";
+>> Version.cs echo     public const string Version = "!ver!";
 >> Version.cs echo }
+>> "%log%" echo Wrote Version.cs holding !ver!
 
-rem ---- Locate a C# compiler (Roslyn preferred, Framework fallback) ----
-set "sCsc="
-if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe" set "sCsc=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe"
-if not defined sCsc for %%E in (Community Professional Enterprise) do (
-    if not defined sCsc if exist "C:\Program Files\Microsoft Visual Studio\2022\%%E\MSBuild\Current\Bin\Roslyn\csc.exe" set "sCsc=C:\Program Files\Microsoft Visual Studio\2022\%%E\MSBuild\Current\Bin\Roslyn\csc.exe"
-    if not defined sCsc if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\%%E\MSBuild\Current\Bin\Roslyn\csc.exe" set "sCsc=C:\Program Files (x86)\Microsoft Visual Studio\2022\%%E\MSBuild\Current\Bin\Roslyn\csc.exe"
+rem ---- the Roslyn compiler ------------------------------------------------
+rem vswhere knows every Visual Studio and Build Tools install, of any year and
+rem edition, so no list of paths has to be kept current. The doubled quotes
+rem are for cmd /c, which strips the outer pair of a command that starts
+rem and ends with one.
+set "csc="
+set "vswhere=!progFiles86!\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "!vswhere!" for /f "usebackq delims=" %%c in (`""!vswhere!" -latest -products * -find "MSBuild\**\Bin\Roslyn\csc.exe""`) do if not defined csc set "csc=%%c"
+if not defined csc (
+  echo Installing the Visual Studio Build Tools, which hold the C# compiler. This takes several minutes.
+  >> "%log%" echo No Roslyn csc.exe; installing Microsoft.VisualStudio.2022.BuildTools with winget
+  winget install --id Microsoft.VisualStudio.2022.BuildTools --silent --accept-source-agreements --accept-package-agreements --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.Net.Component.4.8.TargetingPack" >> "%log%" 2>&1
+  >> "%log%" echo Ran: winget install Microsoft.VisualStudio.2022.BuildTools, exit code !errorlevel!
+  if exist "!vswhere!" for /f "usebackq delims=" %%c in (`""!vswhere!" -latest -products * -find "MSBuild\**\Bin\Roslyn\csc.exe""`) do if not defined csc set "csc=%%c"
 )
-if not defined sCsc if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe" set "sCsc=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe"
-if not defined sCsc for %%E in (Community Professional Enterprise) do (
-    if not defined sCsc if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\%%E\MSBuild\Current\Bin\Roslyn\csc.exe" set "sCsc=C:\Program Files (x86)\Microsoft Visual Studio\2019\%%E\MSBuild\Current\Bin\Roslyn\csc.exe"
+if not defined csc (
+  echo The C# compiler could not be found or installed. The log says why.
+  >> "%log%" echo ERROR: no Roslyn csc.exe
+  goto :failed
 )
-if not defined sCsc if exist "%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
-    set "sCsc=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-    echo [INFO] Roslyn csc.exe was not found; using the in-box Framework compiler, which is fine for this source.
-)
-if not defined sCsc (
-    echo [ERROR] No C# compiler was found.  Install .NET Framework 4.8 or Visual Studio Build Tools.
-    exit /b 2
-)
-echo [INFO] Using compiler: %sCsc%
+>> "%log%" echo Compiler: !csc!
 
-rem ---- Locate the netstandard facade (needed for netstandard2.0 dlls) ----
-set "sNetstd="
-if exist "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\Facades\netstandard.dll" set "sNetstd=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\Facades\netstandard.dll"
-if not defined sNetstd if exist "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\Facades\netstandard.dll" set "sNetstd=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\Facades\netstandard.dll"
-if not defined sNetstd if exist "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\Facades\netstandard.dll" set "sNetstd=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\Facades\netstandard.dll"
-if not defined sNetstd if exist "%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\netstandard\v4.0_2.0.0.0__cc7b13ffcd2ddd51\netstandard.dll" set "sNetstd=%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\netstandard\v4.0_2.0.0.0__cc7b13ffcd2ddd51\netstandard.dll"
-if not defined sNetstd (
-    echo [ERROR] netstandard.dll facade not found.  Repair or install .NET Framework 4.8.
-    exit /b 2
+rem ---- reference assemblies given by full path ---------------------------
+rem Say.cs needs UIAutomationProvider.dll and UIAutomationTypes.dll for its
+rem Narrator notifications, and System.Speech.dll for its SAPI backup. None is
+rem on Roslyn's default reference path, so each is named by full path or the
+rem compile fails with CS0006. The .NET Framework 4.8 targeting pack has them;
+rem the runtime's WPF folder and the assembly cache are the fallbacks.
+set "refBase=Reference Assemblies\Microsoft\Framework\.NETFramework"
+set "speech="
+set "uiaProv="
+set "uiaTypes="
+for %%v in (v4.8.1 v4.8 v4.7.2 v4.7.1 v4.7 v4.6.2) do (
+  if not defined speech if exist "!progFiles86!\!refBase!\%%v\System.Speech.dll" set "speech=!progFiles86!\!refBase!\%%v\System.Speech.dll"
+  if not defined uiaProv if exist "!progFiles86!\!refBase!\%%v\UIAutomationProvider.dll" set "uiaProv=!progFiles86!\!refBase!\%%v\UIAutomationProvider.dll"
+  if not defined uiaTypes if exist "!progFiles86!\!refBase!\%%v\UIAutomationTypes.dll" set "uiaTypes=!progFiles86!\!refBase!\%%v\UIAutomationTypes.dll"
 )
-echo [INFO] netstandard facade: %sNetstd%
+if not defined speech if exist "%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\System.Speech\v4.0_4.0.0.0__31bf3856ad364e35\System.Speech.dll" set "speech=%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\System.Speech\v4.0_4.0.0.0__31bf3856ad364e35\System.Speech.dll"
+if not defined uiaProv if exist "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationProvider.dll" set "uiaProv=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationProvider.dll"
+if not defined uiaTypes if exist "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationTypes.dll" set "uiaTypes=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationTypes.dll"
+if not defined speech goto :noRefs
+if not defined uiaProv goto :noRefs
+if not defined uiaTypes goto :noRefs
+>> "%log%" echo References: !speech! ; !uiaProv! ; !uiaTypes!
+goto :haveRefs
+:noRefs
+echo A .NET Framework reference assembly is missing: System.Speech, UIAutomationProvider or UIAutomationTypes.
+echo Install the .NET Framework 4.8 targeting pack with the Visual Studio Installer, then build again.
+>> "%log%" echo ERROR: speech=!speech! uiaProv=!uiaProv! uiaTypes=!uiaTypes!
+goto :failed
+:haveRefs
 
-rem ---- Fetch the PdfPig assemblies on first build ---------------------
-rem The official package id is plain "pdfpig" -- the project's README
-rem says Install-Package PdfPig -- and that one package contains all
-rem the UglyToad assemblies.  (The NuGet id "UglyToad.PdfPig" is an
-rem unrelated third-party upload and must NOT be used.)  PdfPig 0.1.14
-rem stable declares net462 dependencies on Microsoft.Bcl.HashCode,
-rem System.Memory, and System.ValueTuple, so those helpers are fetched
-rem too.  System.Memory must be 4.6.0 or later: PdfPig 0.1.14 was
-rem compiled against System.Memory assembly version 4.0.2.0, and the
-rem 4.5.x packages carry only 4.0.1.x, which csc rejects with CS1705.
-rem A nugetPins.txt stamp records the fetched set, so editing any pin
-rem above makes the next build refetch instead of reusing stale dlls.  Packages come from the official NuGet flat-container url (the
-rem DbDo build's approach) and are unpacked with PowerShell Expand-Archive,
-rem which requires the archive to carry a .zip extension, so each
-rem downloaded nupkg is saved as <package>.zip.  From each package the
-rem best lib target for .NET Framework 4.8 is copied: net462 first,
-rem then net461, net46, net45, then netstandard2.0.  The System helper
-rem packages cover PdfPig's possible dependencies; any that a given
-rem PdfPig version does not need are simply absent after extraction
-rem and are skipped at compile time.
-set "sPins=pdfpig@0.1.14 epplus@4.5.3.3 microsoft.bcl.hashcode@6.0.0 system.text.encoding.codepages@4.5.1 system.buffers@4.5.1 system.memory@4.6.0 system.numerics.vectors@4.5.0 system.runtime.compilerservices.unsafe@6.0.0 system.valuetuple@4.5.0"
-set "sStamp="
-set "sStampWant=%sPins% layout-net40"
-if exist "nugetPins.txt" set /p sStamp=<"nugetPins.txt"
-if "%sStamp%"=="%sStampWant%" (
-    echo [INFO] The pinned packages are already present, so the fetch step is skipped.
-    goto :dllsReady
+rem ---- the kit's classes, and the stale copies they replace ---------------
+set "homerSources="
+for %%M in (!homerModules!) do (
+  if exist "!homerDev!\CSharp\%%M.cs" (
+    set "homerSources=!homerSources! "!homerDev!\CSharp\%%M.cs""
+  ) else (
+    echo The kit has no CSharp\%%M.cs. Update HomerDev to !kitNeeded! or later.
+    >> "%log%" echo ERROR: NOT IN THE KIT: CSharp\%%M.cs
+    goto :failed
+  )
 )
-echo [INFO] Fetching the PdfPig assemblies from nuget.org ...
-del /q UglyToad.*.dll EPPlus.dll Microsoft.Bcl.HashCode.dll System.Text.Encoding.CodePages.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.ValueTuple.dll 2>nul
-set "sTempDir=%TEMP%\bookFido_nuget_%RANDOM%%RANDOM%"
-mkdir "%sTempDir%" 2>nul
-if not exist "%sTempDir%" (
-    echo [ERROR] Could not create temp directory %sTempDir%.
-    exit /b 2
+>> "%log%" echo Kit sources: !homerSources!
+for %%F in (!kitClasses!) do (
+  if exist "%%F" if exist "!homerDev!\CSharp\%%F" (
+    del /q "%%F" && >> "%log%" echo Removed the app's own copy of %%F; the kit's is compiled instead
+  )
 )
-for %%K in (%sPins%) do (
-    for /f "tokens=1,2 delims=@" %%A in ("%%K") do (
-        echo [INFO] Fetching %%A %%B ...
-        curl -sL -o "!sTempDir!\%%A.zip" "https://api.nuget.org/v3-flatcontainer/%%A/%%B/%%A.%%B.nupkg"
-        if exist "!sTempDir!\%%A.zip" (
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!sTempDir!\%%A.zip' -DestinationPath '!sTempDir!\%%A' -Force"
-            set "sLibDir="
-            if exist "!sTempDir!\%%A\lib\net462" set "sLibDir=!sTempDir!\%%A\lib\net462"
-            if not defined sLibDir if exist "!sTempDir!\%%A\lib\net461" set "sLibDir=!sTempDir!\%%A\lib\net461"
-            if not defined sLibDir if exist "!sTempDir!\%%A\lib\net46" set "sLibDir=!sTempDir!\%%A\lib\net46"
-            if not defined sLibDir if exist "!sTempDir!\%%A\lib\net45" set "sLibDir=!sTempDir!\%%A\lib\net45"
-            if not defined sLibDir if exist "!sTempDir!\%%A\lib\net40" set "sLibDir=!sTempDir!\%%A\lib\net40"
-            if not defined sLibDir if exist "!sTempDir!\%%A\lib\netstandard2.0" set "sLibDir=!sTempDir!\%%A\lib\netstandard2.0"
-            if defined sLibDir (
-                echo [INFO] %%A: taking dlls from !sLibDir!
-                copy /y "!sLibDir!\*.dll" . >nul
-            )
-            if not defined sLibDir (
-                echo [WARN] No usable lib folder found inside %%A %%B.  Package layout:
-                dir /s /b "!sTempDir!\%%A\lib" 2>nul
-            )
-        ) else (
-            echo [WARN] Could not download %%A %%B.
-        )
-    )
-)
-rmdir /s /q "%sTempDir%" 2>nul
-(echo %sStampWant%)>"nugetPins.txt"
-:dllsReady
-if not exist "UglyToad.PdfPig.dll" (
-    echo [ERROR] UglyToad.PdfPig.dll could not be obtained, so the build cannot proceed.
-    echo         Check your internet connection, or place the PdfPig dlls beside this script.
-    exit /b 2
-)
-echo [INFO] Assemblies present for embedding:
-dir /b UglyToad.*.dll 2>nul
-dir /b EPPlus.dll Microsoft.Bcl.HashCode.dll System.Buffers.dll System.Text.Encoding.CodePages.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.ValueTuple.dll 2>nul
 
-rem ---- fetch Microsoft's SQLite library on first build ----------------
-rem Microsoft.Data.Sqlite.Core needs no ADO provider and carries one native
-rem piece, e_sqlite3.dll, which is embedded as a plain resource and written
-rem beside the program at run time, so bookFido stays a single file.  The
-rem batteries assembly is included because the library looks for it by name.
-rem Inside the quoted arguments below a pipe is literal, so no escaping.
-if exist "Microsoft.Data.Sqlite.dll" if exist "SQLitePCLRaw.core.dll" if exist "SQLitePCLRaw.provider.e_sqlite3.dll" if exist "SQLitePCLRaw.batteries_v2.dll" if exist "e_sqlite3.dll" goto :have_sqlite
-echo [INFO] Fetching the Microsoft SQLite library from nuget.org ...
-powershell -NoProfile -Command ^
-  "$ErrorActionPreference='Stop';" ^
-  "$lSets = @(@('microsoft.data.sqlite.core','8.0.6','Microsoft.Data.Sqlite.dll'), @('sqlitepclraw.core','2.1.8','SQLitePCLRaw.core.dll'), @('sqlitepclraw.provider.e_sqlite3','2.1.8','SQLitePCLRaw.provider.e_sqlite3.dll'), @('sqlitepclraw.bundle_e_sqlite3','2.1.8','SQLitePCLRaw.batteries_v2.dll'), @('sqlitepclraw.lib.e_sqlite3','2.1.8','e_sqlite3.dll'));" ^
-  "foreach ($aSet in $lSets) {" ^
-  "  $sZip = Join-Path $env:TEMP ($aSet[0] + '.nupkg.zip');" ^
-  "  Invoke-WebRequest -Uri ('https://api.nuget.org/v3-flatcontainer/' + $aSet[0] + '/' + $aSet[1] + '/' + $aSet[0] + '.' + $aSet[1] + '.nupkg') -OutFile $sZip;" ^
-  "  $sDir = Join-Path $env:TEMP ($aSet[0] + '_x');" ^
+rem ---- fetched inputs: NuGet packages and the NVDA controller client -----
+if not exist "exec" mkdir "exec"
+if not exist "work" mkdir "work"
+set "extraRefs="
+for %%P in (!nugetPackages!) do (
+  for /f "tokens=1,2 delims=:" %%a in ("%%P") do (
+    call :getNuGet %%a %%b
+    if not exist "exec\%%b" goto :failed
+    set "extraRefs=!extraRefs! /reference:"exec\%%b""
+  )
+)
+set "resourceArgs="
+for %%R in (!csResources!) do (
+  if exist "%%R" (
+    set "resourceArgs=!resourceArgs! /resource:%%R,%%~nxR"
+  ) else (
+    echo The resource %%R named in csResources is missing.
+    >> "%log%" echo ERROR: resource %%R missing
+    goto :failed
+  )
+)
+if defined nvdaClient (
+  call :getNvdaClient
+  if not exist "work\nvda\nvdaControllerClient.dll" goto :failed
+  if /i "!nvdaClient!"=="embed" set "resourceArgs=!resourceArgs! /resource:work\nvda\nvdaControllerClient.dll,nvdaControllerClient.dll"
+  if /i "!nvdaClient!"=="exec" copy /y "work\nvda\nvdaControllerClient.dll" "exec\" >nul
+)
+
+rem ---- bookFido's own libraries, fetched at pinned versions and embedded -----
+rem Every library bookFido uses travels INSIDE bookFido.exe, as a resource
+rem its AssemblyResolve handler loads, so the program stays a single file.
+rem The packages are fetched once into work\nuget; nugetPins.txt there
+rem records the set, so changing a pin below makes the next build fetch again.
+rem
+rem THE PINS, each for a reason (details in help\Developer.md):
+rem   pdfpig 0.1.14 -- the official id; "UglyToad.PdfPig" is an unrelated
+rem     upload and must never be used
+rem   epplus 4.5.3.3 -- the last LGPL release; lib\net40 is taken
+rem   system.memory 4.6.0 -- PdfPig 0.1.14 wants assembly 4.0.2.0, and the
+rem     4.5.x packages carry only 4.0.1.x, which csc rejects with CS1705
+rem   microsoft.data.sqlite.core 8.0.6 with sqlitepclraw 2.1.8 -- batteries_v2
+rem     is required, because the library looks for it by name
+rem
+rem A COPY OF EACH MANAGED LIBRARY ALSO GOES BESIDE exec\bookFido.exe. The
+rem resolver prefers a file beside the program over the embedded bytes, which
+rem is how every verified run of the database worked from the project folder;
+rem the installer ships only the program, which then loads the bytes.
+if not exist "work\nuget" mkdir "work\nuget"
+rem The layout before the kit kept all of these at the top of the project:
+rem moved into work\nuget rather than fetched again.
+if exist "nugetPins.txt" if not exist "work\nuget\nugetPins.txt" (
+  move /y "nugetPins.txt" "work\nuget\" >nul
+  for %%D in (UglyToad.*.dll EPPlus.dll Microsoft.Bcl.HashCode.dll Microsoft.Data.Sqlite.dll SQLitePCLRaw.batteries_v2.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.Text.Encoding.CodePages.dll System.ValueTuple.dll e_sqlite3.dll) do if exist "%%D" move /y "%%D" "work\nuget\" >nul
+  >> "%log%" echo Moved the libraries fetched before the kit into work\nuget
+)
+set "netstd="
+for %%v in (v4.8.1 v4.8 v4.7.2) do if not defined netstd if exist "!progFiles86!\Reference Assemblies\Microsoft\Framework\.NETFramework\%%v\Facades\netstandard.dll" set "netstd=!progFiles86!\Reference Assemblies\Microsoft\Framework\.NETFramework\%%v\Facades\netstandard.dll"
+if not defined netstd if exist "%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\netstandard\v4.0_2.0.0.0__cc7b13ffcd2ddd51\netstandard.dll" set "netstd=%SystemRoot%\Microsoft.NET\assembly\GAC_MSIL\netstandard\v4.0_2.0.0.0__cc7b13ffcd2ddd51\netstandard.dll"
+if not defined netstd (
+  echo The netstandard facade was not found. Install the .NET Framework 4.8 targeting pack.
+  >> "%log%" echo ERROR: no netstandard.dll facade
+  goto :failed
+)
+>> "%log%" echo netstandard facade: !netstd!
+set "extraRefs=!extraRefs! /reference:"!netstd!""
+set "pins=pdfpig@0.1.14 epplus@4.5.3.3 microsoft.bcl.hashcode@6.0.0 system.text.encoding.codepages@4.5.1 system.buffers@4.5.1 system.memory@4.6.0 system.numerics.vectors@4.5.0 system.runtime.compilerservices.unsafe@6.0.0 system.valuetuple@4.5.0 microsoft.data.sqlite.core@8.0.6 sqlitepclraw.core@2.1.8 sqlitepclraw.provider.e_sqlite3@2.1.8 sqlitepclraw.bundle_e_sqlite3@2.1.8 sqlitepclraw.lib.e_sqlite3@2.1.8"
+set "pinStamp="
+if exist "work\nuget\nugetPins.txt" set /p pinStamp=<"work\nuget\nugetPins.txt"
+set "pinWant=!pins! layout-net40 sqlite-by-name"
+if "!pinStamp!"=="!pinWant!" goto :libsReady
+echo Fetching bookFido's libraries from nuget.org
+>> "%log%" echo Fetching the pinned NuGet packages into work\nuget
+rem The general packages: from each, the dlls of the best lib folder for .NET
+rem Framework 4.8 (net462, net461, net46, net45, net40, then netstandard2.0).
+rem The SQLite packages: each named file found by SEARCH in the package,
+rem preferring a netstandard2.0 or win-x64 copy -- never a guessed path.
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference = 'Stop';" ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+  "$sOut = Join-Path '%CD%' 'work\nuget';" ^
+  "$dByName = @{ 'microsoft.data.sqlite.core' = 'Microsoft.Data.Sqlite.dll'; 'sqlitepclraw.core' = 'SQLitePCLRaw.core.dll'; 'sqlitepclraw.provider.e_sqlite3' = 'SQLitePCLRaw.provider.e_sqlite3.dll'; 'sqlitepclraw.bundle_e_sqlite3' = 'SQLitePCLRaw.batteries_v2.dll'; 'sqlitepclraw.lib.e_sqlite3' = 'e_sqlite3.dll' };" ^
+  "foreach ($sPin in ('!pins!' -split ' ')) {" ^
+  "  $sId, $sVer = $sPin -split '@';" ^
+  "  $sZip = Join-Path $env:TEMP ('bookFido_' + $sId + '.zip');" ^
+  "  $sDir = $sZip + '.d';" ^
+  "  Invoke-WebRequest -Uri ('https://api.nuget.org/v3-flatcontainer/' + $sId + '/' + $sVer + '/' + $sId + '.' + $sVer + '.nupkg') -OutFile $sZip -UseBasicParsing;" ^
   "  if (Test-Path $sDir) { Remove-Item -Recurse -Force $sDir };" ^
-  "  Expand-Archive -Path $sZip -DestinationPath $sDir;" ^
-  "  $lFound = Get-ChildItem -Path $sDir -Recurse -Filter $aSet[2];" ^
-  "  $oPick = $lFound | Where-Object { $_.FullName -like '*netstandard2.0*' -or $_.FullName -like '*win-x64*' } | Sort-Object FullName | Select-Object -First 1;" ^
-  "  if (-not $oPick) { $oPick = $lFound | Select-Object -First 1 };" ^
-  "  if (-not $oPick) { throw ($aSet[2] + ' was not found in package ' + $aSet[0]) };" ^
-  "  Copy-Item $oPick.FullName -Destination $aSet[2] -Force;" ^
-  "  Write-Output ('[INFO] ' + $aSet[2] + ' from ' + $oPick.FullName);" ^
-  "}"
-for %%D in (Microsoft.Data.Sqlite.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll SQLitePCLRaw.batteries_v2.dll e_sqlite3.dll) do (
-    if not exist "%%D" (
-        echo [ERROR] %%D could not be fetched.  Internet is needed once.
-        exit /b 1
+  "  Expand-Archive -LiteralPath $sZip -DestinationPath $sDir -Force;" ^
+  "  if ($dByName.ContainsKey($sId)) {" ^
+  "    $lFound = @(Get-ChildItem -Path $sDir -Recurse -Filter $dByName[$sId]);" ^
+  "    $oPick = $lFound | Where-Object { $_.FullName -like '*netstandard2.0*' -or $_.FullName -like '*win-x64*' } | Sort-Object FullName | Select-Object -First 1;" ^
+  "    if (-not $oPick) { $oPick = $lFound | Select-Object -First 1 };" ^
+  "    if (-not $oPick) { throw ($dByName[$sId] + ' was not found in ' + $sId) };" ^
+  "    Copy-Item -LiteralPath $oPick.FullName -Destination $sOut -Force;" ^
+  "    $sId + ': ' + $oPick.FullName" ^
+  "  } else {" ^
+  "    $sLib = $null;" ^
+  "    foreach ($sTarget in @('net462', 'net461', 'net46', 'net45', 'net40', 'netstandard2.0')) { $sTry = Join-Path $sDir ('lib\' + $sTarget); if (-not $sLib -and (Test-Path $sTry)) { $sLib = $sTry } };" ^
+  "    if (-not $sLib) { throw ('No usable lib folder in ' + $sId + ' ' + $sVer) };" ^
+  "    Copy-Item -Path (Join-Path $sLib '*.dll') -Destination $sOut -Force;" ^
+  "    $sId + ': ' + $sLib" ^
+  "  };" ^
+  "  Remove-Item -LiteralPath $sZip, $sDir -Recurse -Force -ErrorAction SilentlyContinue" ^
+  "}" >> "%log%" 2>&1
+set "iCode=!errorlevel!"
+>> "%log%" echo Ran: fetch the pinned NuGet packages, exit code !iCode!
+if not "!iCode!"=="0" (
+  echo bookFido's libraries could not all be fetched. The log names the one that failed.
+  goto :failed
+)
+> "work\nuget\nugetPins.txt" echo !pinWant!
+:libsReady
+for %%D in (UglyToad.PdfPig.dll EPPlus.dll Microsoft.Data.Sqlite.dll SQLitePCLRaw.batteries_v2.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll e_sqlite3.dll) do (
+  if not exist "work\nuget\%%D" (
+    echo work\nuget\%%D is missing, so the build cannot go on. Delete work\nuget\nugetPins.txt to fetch again.
+    >> "%log%" echo ERROR: work\nuget\%%D missing
+    goto :failed
+  )
+)
+for %%D in (work\nuget\*.dll) do (
+  if /i "%%~nxD"=="e_sqlite3.dll" (
+    set "resourceArgs=!resourceArgs! /resource:%%D,%%~nxD"
+  ) else (
+    set "extraRefs=!extraRefs! /reference:"%%D""
+    set "resourceArgs=!resourceArgs! /resource:%%D,%%~nxD"
+    copy /y "%%D" "exec\" >nul
+  )
+)
+>> "%log%" echo Embedded libraries: !resourceArgs!
+
+rem ---- a copy running from this project's exec cannot be replaced ------
+powershell -NoProfile -Command "$p = Get-Process -Name '%app%' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -like '%CD%\exec\*' }; if ($p) { exit 1 } else { exit 0 }"
+if errorlevel 1 (
+  echo exec\%app%.exe from this project is running, so it cannot be replaced.
+  echo Close it, then build again. An installed copy may stay open.
+  >> "%log%" echo ERROR: exec\%app%.exe is running; the build does not close it
+  goto :failed
+)
+
+rem ---- compile into exec -----------------------------------------------------
+set "icon="
+if exist "%app%.ico" set "icon=/win32icon:%app%.ico"
+set "manifest="
+if exist "%app%.manifest" set "manifest=/nowin32manifest /win32manifest:%app%.manifest"
+echo Compiling exec\%app%.exe
+"!csc!" /nologo /target:!cscTarget! /platform:x64 /optimize+ ^
+  /reference:System.dll ^
+  /reference:System.Core.dll ^
+  /reference:System.Data.dll ^
+  /reference:System.Drawing.dll ^
+  /reference:System.Windows.Forms.dll ^
+  /reference:System.Web.dll ^
+  /reference:System.Web.Extensions.dll ^
+  /reference:System.Net.Http.dll ^
+  /reference:System.Xml.dll ^
+  /reference:System.IO.Compression.dll ^
+  /reference:System.IO.Compression.FileSystem.dll ^
+  /reference:Microsoft.VisualBasic.dll ^
+  /reference:"!speech!" ^
+  /reference:"!uiaProv!" ^
+  /reference:"!uiaTypes!" ^
+  !extraRefs! !resourceArgs! !icon! !manifest! ^
+  /out:"exec\%app%.exe" ^
+  Version.cs %app%.cs !appSources! !homerSources! >> "%log%" 2>&1
+set "iCode=!errorlevel!"
+>> "%log%" echo Ran: csc, exit code !iCode!
+if not "!iCode!"=="0" (
+  echo The compile failed. The log has the compiler's messages.
+  goto :failed
+)
+echo Built exec\%app%.exe version !ver!
+>> "%log%" echo Built exec\%app%.exe version !ver!
+rem The program at the top, from the layout before exec: removed now that the
+rem new one exists. It is build output, never anything a person made.
+if exist "%app%.exe" del /q "%app%.exe" && >> "%log%" echo Removed the old top-level %app%.exe
+
+rem ---- the kit's tools this app uses, refreshed on every build ----------
+if not exist "scripts" mkdir "scripts"
+for %%F in (!kitTools!) do (
+  if exist "!homerDev!\scripts\%%F" (
+    copy /y "!homerDev!\scripts\%%F" "scripts\" >nul && >> "%log%" echo Refreshed scripts\%%F
+  ) else (
+    >> "%log%" echo NOT IN THE KIT: scripts\%%F
+    echo The kit has no scripts\%%F. Update HomerDev to !kitNeeded! or later.
+  )
+)
+for %%F in (!retiredTools!) do (
+  if exist "scripts\%%F" del /q "scripts\%%F" && >> "%log%" echo Removed retired scripts\%%F
+)
+
+rem ---- carried over from the layout before the kit (September 2026) -------
+rem Unzipping never deletes or renames, so the old files stay on disk. README.md
+rem becomes ReadMe.md -- through git mv when git tracks the old spelling, since
+rem Windows' git treats the two as one file -- and the program's own data
+rem (bookFido.json, bookFido.db) moves on its first run, into
+rem %LOCALAPPDATA%\bookFido\data. The old build log joins the others in logs.
+powershell -NoProfile -Command ^
+  "$lTracked = @(git ls-files 2>$null);" ^
+  "foreach ($sPair in @('README.md>ReadMe.md')) {" ^
+  "  $sOld, $sNew = $sPair.Split('>');" ^
+  "  if ($lTracked -ccontains $sOld) { git mv -f $sOld $sNew 2>&1 | Out-Null; 'git mv ' + $sOld + ' ' + $sNew + ', exit code ' + $LASTEXITCODE; continue }" ^
+  "  $f = Get-ChildItem -LiteralPath '.' -File | Where-Object { $_.Name -ceq $sOld };" ^
+  "  if (-not $f) { continue }" ^
+  "  Rename-Item -LiteralPath $sOld -NewName ($sNew + '.tmp'); Rename-Item -LiteralPath ($sNew + '.tmp') -NewName $sNew;" ^
+  "  'Renamed ' + $sOld + ' to ' + $sNew" ^
+  "}" ^
+  "'Capitals checked: ReadMe'" >> "%log%" 2>&1
+if exist "buildbookFido.log" move /y "buildbookFido.log" "logs\buildbookFido-before-the-kit.log" >nul && >> "%log%" echo Moved the old buildbookFido.log into logs
+
+rem ---- documents ----------------------------------------------------------
+if not defined useDocs goto :docsDone
+set "pandoc="
+for /f "delims=" %%p in ('where pandoc 2^>nul') do if not defined pandoc set "pandoc=%%p"
+if not defined pandoc if exist "%ProgramFiles%\Pandoc\pandoc.exe" set "pandoc=%ProgramFiles%\Pandoc\pandoc.exe"
+if not defined pandoc if exist "%LOCALAPPDATA%\Pandoc\pandoc.exe" set "pandoc=%LOCALAPPDATA%\Pandoc\pandoc.exe"
+if not defined pandoc (
+  echo Installing pandoc, which writes the .htm copy of each document
+  winget install --id JohnMacFarlane.Pandoc --scope machine --silent --accept-source-agreements --accept-package-agreements >> "%log%" 2>&1
+  >> "%log%" echo Ran: winget install JohnMacFarlane.Pandoc, exit code !errorlevel!
+  if exist "%ProgramFiles%\Pandoc\pandoc.exe" set "pandoc=%ProgramFiles%\Pandoc\pandoc.exe"
+)
+if not defined pandoc (
+  echo Pandoc could not be installed, so no .htm was rebuilt.
+  >> "%log%" echo ERROR: no pandoc
+  goto :failed
+)
+>> "%log%" echo Pandoc: !pandoc!
+rem A .htm is written when it is missing or older than its .md, so a lost
+rem .htm is a non-event and an unchanged document is left alone.
+powershell -NoProfile -Command ^
+  "$n = 0;" ^
+  "$l = @(Get-ChildItem -LiteralPath '.' -Filter '*.md' -File) + @(Get-ChildItem -LiteralPath 'help' -Filter '*.md' -File -ErrorAction SilentlyContinue);" ^
+  "foreach ($m in $l) {" ^
+  "  $h = [IO.Path]::ChangeExtension($m.FullName, '.htm');" ^
+  "  if ((Test-Path -LiteralPath $h) -and ((Get-Item -LiteralPath $h).LastWriteTime -ge $m.LastWriteTime)) { continue }" ^
+  "  & '!pandoc!' -f markdown -t html5 --standalone --metadata ('title=' + $m.BaseName) -o $h $m.FullName;" ^
+  "  'Ran: pandoc ' + $m.Name + ', exit code ' + $LASTEXITCODE;" ^
+  "  if ($LASTEXITCODE -eq 0) { $n++ } else { $bad = 1 }" ^
+  "}" ^
+  "'Documents converted: ' + $n;" ^
+  "if ($bad) { exit 1 } else { exit 0 }" >> "%log%" 2>&1
+if errorlevel 1 (
+  echo Pandoc could not convert every document. The log names each one.
+  goto :failed
+)
+:docsDone
+
+rem ---- the project's own files in the Homer encoding ---------------------
+rem UTF-8 with a byte order mark and CRLF; .cmd and .bat CRLF without the
+rem mark. Pandoc writes neither. -build is an argument of its own: a bare
+rem call hands the tool THIS script's arguments through %%* (a cmd quirk).
+if exist "scripts\fixEncoding.cmd" (
+  call "scripts\fixEncoding.cmd" -build >> "%log%" 2>&1
+  >> "%log%" echo Ran: scripts\fixEncoding -build, exit code !errorlevel!
+)
+
+rem ---- spoken tutorials, when the app has any ---------------------------
+if exist "help\Tutorial_*.inix" (
+  set "tutorialsMissing="
+  for %%F in (help\Tutorial_*.inix) do if not exist "help\tutorials\%%~nF.mp3" set "tutorialsMissing=1"
+  if defined tutorialsMissing (
+    if exist "scripts\buildTutorials.cmd" (
+      echo Speaking the tutorials that have no audio yet
+      call "scripts\buildTutorials.cmd" -build
+      if errorlevel 1 echo Not every tutorial could be spoken. The tutorials log in logs\ says why.
+    ) else (
+      echo This app has walks but its kitTools do not name buildTutorials.
     )
-)
-:have_sqlite
-
-rem ---- Assemble the reference and embed switches for each dll present ----
-set "sExtra="
-for %%D in (UglyToad.*.dll) do set "sExtra=!sExtra! /reference:%%D /resource:%%D,%%D"
-for %%D in (EPPlus.dll Microsoft.Bcl.HashCode.dll Microsoft.Data.Sqlite.dll SQLitePCLRaw.batteries_v2.dll SQLitePCLRaw.core.dll SQLitePCLRaw.provider.e_sqlite3.dll System.Buffers.dll System.Memory.dll System.Numerics.Vectors.dll System.Runtime.CompilerServices.Unsafe.dll System.Text.Encoding.CodePages.dll System.ValueTuple.dll) do (
-    if exist "%%D" set "sExtra=!sExtra! /reference:%%D /resource:%%D,%%D"
+  )
 )
 
-if exist "e_sqlite3.dll" set "sExtra=!sExtra! /resource:e_sqlite3.dll,e_sqlite3.dll"
-
-rem ---- Compile --------------------------------------------------------
-if exist bookFido.exe del bookFido.exe
-set "sIcon="
-if exist "bookFido.ico" set "sIcon=/win32icon:bookFido.ico"
-"%sCsc%" /nologo %sIcon% /target:winexe /platform:x64 /optimize+ /out:bookFido.exe /reference:System.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.Windows.Forms.dll /reference:System.Data.dll /reference:System.Drawing.dll /reference:System.Xml.dll /reference:"C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationProvider.dll" /reference:"C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319\WPF\UIAutomationTypes.dll" /reference:"%sNetstd%" %sExtra% bookFido.cs Lbc.cs Say.cs Version.cs
-if not exist bookFido.exe (
-    echo [ERROR] Build failed.
-    exit /b 1
+rem ---- installer ----------------------------------------------------------
+if not defined useInstaller goto :done
+rem EVERY FILE IN help\ AND EVERY scripts\install*.cmd MUST BE SHIPPED. The
+rem Source: lines are read, {#Name} tokens resolved from #define lines, and
+rem each file matched against them; recursesubdirs lets a line reach into
+rem subfolders. HomerScribe once shipped without ten help files and the
+rem shared half of its install scripts, and nothing said so. The PowerShell
+rem holds no double quote of its own ([char]34 stands in): cmd would take
+rem one as the end of the quoted chunk and eat the caret of [^...].
+powershell -NoProfile -Command ^
+  "$q = [char]34; $lIss = Get-Content -LiteralPath '%app%_setup.iss';" ^
+  "$dDef = @{}; foreach ($s in $lIss) { if ($s -match ('^#define\s+(\w+)\s+' + $q + '([^' + $q + ']*)' + $q)) { $dDef[$matches[1]] = $matches[2] } };" ^
+  "$lPat = @(); foreach ($s in $lIss) { if ($s -match ('^\s*Source:\s*' + $q + '([^' + $q + ']+)' + $q)) { $p = $matches[1]; foreach ($k in $dDef.Keys) { $p = $p.Replace('{#' + $k + '}', $dDef[$k]) };" ^
+  "  $sAny = '[^\\]*'; if ($s -match 'recursesubdirs') { $sAny = '.*' };" ^
+  "  $lPat += ('^' + [regex]::Escape($p).Replace('\*', $sAny).Replace('\?', '.') + '$') } };" ^
+  "$iRoot = (Get-Location).Path.Length + 1;" ^
+  "$lFiles = @(Get-ChildItem -LiteralPath 'help' -Recurse -File -ErrorAction SilentlyContinue) + @(Get-ChildItem -LiteralPath 'scripts' -Filter 'install*.cmd' -File -ErrorAction SilentlyContinue);" ^
+  "$iMissing = 0; foreach ($f in $lFiles) { $r = $f.FullName.Substring($iRoot); $bHit = $false; foreach ($p in $lPat) { if ($r -match $p) { $bHit = $true; break } };" ^
+  "  if (-not $bHit) { 'NOT IN THE INSTALLER: ' + $r; $iMissing++ } };" ^
+  "'Files checked against the installer: ' + $lFiles.Count + ', missing: ' + $iMissing;" ^
+  "exit $iMissing" >> "%log%" 2>&1
+if errorlevel 1 (
+  echo A file in help or an install script is not in %app%_setup.iss. The log names each one.
+  goto :failed
 )
-echo [INFO] Built bookFido.exe successfully as a single-file exe with PdfPig and EPPlus embedded.
-
-rem ---- Installer documentation check ----------------------------------
-rem bookFido_setup.iss packages ReadMe.htm and License.htm, so the Inno
-rem Setup compile fails if either is absent.  ReadMe.htm should track
-rem README.md; regenerate it with 2htm after editing the README.
-if not exist License.htm echo [WARN] License.htm is missing; bookFido_setup.iss will not compile without it.
-if not exist ReadMe.htm (
-    echo [WARN] ReadMe.htm is missing; produce it from README.md with 2htm, or bookFido_setup.iss will not compile.
-) else (
-    powershell -NoProfile -Command "if ((Get-Item 'README.md').LastWriteTime -gt (Get-Item 'ReadMe.htm').LastWriteTime) { Write-Output '[WARN] ReadMe.htm is older than README.md; regenerate it with 2htm before compiling the installer.' }"
+set "progFiles86=%ProgramFiles(x86)%"
+set "progFiles=%ProgramFiles%"
+set "iscc="
+if exist "!progFiles86!\Inno Setup 6\ISCC.exe" set "iscc=!progFiles86!\Inno Setup 6\ISCC.exe"
+if not defined iscc if exist "!progFiles!\Inno Setup 6\ISCC.exe" set "iscc=!progFiles!\Inno Setup 6\ISCC.exe"
+if not defined iscc (
+  echo Installing Inno Setup, which builds %app%_setup.exe
+  winget install --id JRSoftware.InnoSetup --silent --accept-source-agreements --accept-package-agreements >> "%log%" 2>&1
+  >> "%log%" echo Ran: winget install JRSoftware.InnoSetup, exit code !errorlevel!
+  if exist "!progFiles86!\Inno Setup 6\ISCC.exe" set "iscc=!progFiles86!\Inno Setup 6\ISCC.exe"
+  if not defined iscc if exist "!progFiles!\Inno Setup 6\ISCC.exe" set "iscc=!progFiles!\Inno Setup 6\ISCC.exe"
 )
-echo [INFO] Build finished %date% %time%
+if not defined iscc (
+  echo Inno Setup could not be installed, so %app%_setup.exe was not built.
+  >> "%log%" echo ERROR: no ISCC.exe
+  goto :failed
+)
+>> "%log%" echo Inno Setup: !iscc!
+echo Building %app%_setup.exe
+"!iscc!" /DHomerDev="!homerDev!" "%app%_setup.iss" >> "%log%" 2>&1
+set "iCode=!errorlevel!"
+>> "%log%" echo Ran: ISCC %app%_setup.iss, exit code !iCode!
+if not "!iCode!"=="0" (
+  echo The installer build failed. The log has Inno Setup's output.
+  goto :failed
+)
+if not exist "%app%_setup.exe" (
+  echo Inno Setup returned 0 but wrote no %app%_setup.exe.
+  >> "%log%" echo ERROR: no %app%_setup.exe
+  goto :failed
+)
+echo Built %app%_setup.exe version !ver!
+>> "%log%" echo Built %app%_setup.exe version !ver!
+
+:done
+>> "%log%" echo Build succeeded %DATE% %TIME%
+echo Build succeeded. Next: exec\%app%.exe to try it, then scripts\push "message" and scripts\release.
 endlocal
 exit /b 0
 
+:failed
+>> "%log%" echo Build FAILED %DATE% %TIME%
+echo Build failed. The log is %log%
+endlocal
+exit /b 1
+
+
+:getNuGet
+rem -------------------------------------------------------------------
+rem Fetch one assembly out of one NuGet package into exec.
+rem   call :getNuGet <package id> <assembly file name>
+rem Straight from nuget.org, the newest .NET Framework build preferred.
+rem -------------------------------------------------------------------
+if exist "exec\%~2" goto :eof
+echo Fetching %~1 from NuGet
+>> "%log%" echo Fetching %~1 from NuGet
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference = 'Stop';" ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+  "$sTemp = Join-Path $env:TEMP ('nuget_' + [guid]::NewGuid().ToString('N'));" ^
+  "New-Item -ItemType Directory -Path $sTemp -Force | Out-Null;" ^
+  "$sPkg = Join-Path $sTemp 'package.zip';" ^
+  "Invoke-WebRequest -Uri ('https://www.nuget.org/api/v2/package/%~1') -OutFile $sPkg -UseBasicParsing;" ^
+  "Expand-Archive -LiteralPath $sPkg -DestinationPath $sTemp -Force;" ^
+  "$o = Get-ChildItem -Path (Join-Path $sTemp 'lib') -Recurse -Filter '%~2' | Where-Object { $_.FullName -match 'net4' } | Sort-Object FullName -Descending | Select-Object -First 1;" ^
+  "if (-not $o) { $o = Get-ChildItem -Path (Join-Path $sTemp 'lib') -Recurse -Filter '%~2' | Sort-Object FullName -Descending | Select-Object -First 1 };" ^
+  "if (-not $o) { throw 'No %~2 in the %~1 package.' };" ^
+  "Copy-Item -LiteralPath $o.FullName -Destination (Join-Path '%CD%\exec' '%~2') -Force;" ^
+  "Remove-Item -LiteralPath $sTemp -Recurse -Force -ErrorAction SilentlyContinue;" ^
+  "'%~2 taken from ' + $o.FullName" >> "%log%" 2>&1
+>> "%log%" echo Ran: fetch %~1, exit code !errorlevel!
+if not exist "exec\%~2" echo %~2 could not be fetched from NuGet. The log says why.
+goto :eof
+
+:getNvdaClient
+rem -------------------------------------------------------------------
+rem NVDA's controller client, 64-bit, into work\nvda. NV Access publishes it
+rem beside each release as nvda_<version>_controllerClient.zip; since NVDA
+rem 2024.1 the DLL carries no 32 or 64 in its name. The version below is a
+rem known release (2025.3); the client's interface is stable across releases,
+rem so a newer NVDA speaks through it as well. A copy the project already
+rem has at its top, from the layout before, is taken instead of a download.
+rem -------------------------------------------------------------------
+if exist "work\nvda\nvdaControllerClient.dll" goto :eof
+if not exist "work\nvda" mkdir "work\nvda"
+if exist "nvdaControllerClient.dll" (
+  move /y "nvdaControllerClient.dll" "work\nvda\" >nul
+  >> "%log%" echo Moved the top-level nvdaControllerClient.dll into work\nvda
+  goto :eof
+)
+echo Downloading NVDA's controller client, about 3 MB
+>> "%log%" echo Fetching the NVDA controller client
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference = 'Stop';" ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+  "$sVer = '2025.3';" ^
+  "$sZip = Join-Path $env:TEMP ('nvdaClient_' + [guid]::NewGuid().ToString('N') + '.zip');" ^
+  "$sDir = $sZip + '.d';" ^
+  "Invoke-WebRequest -Uri ('https://download.nvaccess.org/releases/' + $sVer + '/nvda_' + $sVer + '_controllerClient.zip') -OutFile $sZip -UseBasicParsing;" ^
+  "Expand-Archive -LiteralPath $sZip -DestinationPath $sDir -Force;" ^
+  "$o = Get-ChildItem -Path $sDir -Recurse -Filter 'nvdaControllerClient*.dll' | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1;" ^
+  "if (-not $o) { throw 'No x64 nvdaControllerClient DLL in the controller client zip.' };" ^
+  "Copy-Item -LiteralPath $o.FullName -Destination '%CD%\work\nvda\nvdaControllerClient.dll' -Force;" ^
+  "Remove-Item -LiteralPath $sZip, $sDir -Recurse -Force -ErrorAction SilentlyContinue;" ^
+  "'Taken from ' + $o.FullName" >> "%log%" 2>&1
+>> "%log%" echo Ran: fetch the NVDA controller client, exit code !errorlevel!
+if not exist "work\nvda\nvdaControllerClient.dll" echo NVDA's controller client could not be fetched. The log says why.
+goto :eof
+
+:seedVersion
+rem -------------------------------------------------------------------
+rem A MISSING version.txt IS MADE, NOT AN ERROR -- and not from 1.0.0 over
+rem an app that has released before, which would publish a release older
+rem than every installed copy. The number is the higher of seedVersion and
+rem one past the newest vN.N.N tag on origin. A number made here is new
+rem already, so this build does not step it again.
+rem -------------------------------------------------------------------
+set "ver="
+for /f "usebackq delims=" %%v in (`powershell -NoProfile -Command "$b = [version]'!seedVersion!'; try { foreach ($t in @(git ls-remote --tags origin 'v*' 2>$null)) { if ($t -match 'refs/tags/v(\d+)\.(\d+)\.?(\d*)') { $n = New-Object Version ([int]$matches[1]), ([int]$matches[2]), ([int]('0' + $matches[3]) + 1); if ($n -gt $b) { $b = $n } } } } catch { }; '{0}.{1}.{2}' -f $b.Major, $b.Minor, [Math]::Max($b.Build, 0)"`) do set "ver=%%v"
+if "!ver!"=="" (
+  echo version.txt is missing and no number could be made for it.
+  >> "%log%" echo ERROR: could not seed version.txt from !seedVersion!
+  goto :eof
+)
+> version.txt echo !ver!
+set "bSeeded=1"
+echo Made version.txt holding !ver!
+>> "%log%" echo Made version.txt holding !ver! (seed !seedVersion!, or one past the newest release tag)
+goto :eof
+
 :takeNextVersion
-rem ---------------------------------------------------------------------------
-rem Take the next version number: increment the last dotted part of !sVer!.
-rem This runs as a subroutine rather than inside a parenthesised ( ) block, so
-rem each line is parsed on its own -- avoiding batch's block-parsing traps.
-rem ---------------------------------------------------------------------------
+rem -------------------------------------------------------------------
+rem Take the next UNUSED version: the last dotted part of !ver! plus one,
+rem stepping over any number that already carries a release tag on origin.
+rem One "git ls-remote" is the only network call; if it fails the plain
+rem increment is used and release remains the check it has always been.
+rem -------------------------------------------------------------------
+set "verOld=!ver!"
+set "sTagFile=%TEMP%\%app%_tags.txt"
+del "!sTagFile!" >nul 2>&1
+git ls-remote --tags origin "v*" > "!sTagFile!" 2>> "%log%"
+if errorlevel 1 >> "%log%" echo WARN: the released tags could not be read, so the next number is taken blindly.
+if errorlevel 1 del "!sTagFile!" >nul 2>&1
+
+:nextCandidate
+call :incrementVersion
+if not defined new goto :eof
+if not exist "!sTagFile!" goto :haveNextVersion
+findstr /e /c:"refs/tags/v!ver!" "!sTagFile!" >nul 2>&1
+if errorlevel 1 goto :haveNextVersion
+echo Version v!ver! is already released; stepping over it.
+>> "%log%" echo Version v!ver! is already released; stepping over it.
+goto :nextCandidate
+
+:haveNextVersion
+del "!sTagFile!" >nul 2>&1
+> version.txt echo !ver!
+echo Version !verOld! to !ver!
+>> "%log%" echo Version: !verOld! to !ver!
+goto :eof
+
+:incrementVersion
 set "p1=" & set "p2=" & set "p3=" & set "p4="
-set "sNew="
-for /f "tokens=1-4 delims=." %%a in ("!sVer!") do (
-    set "p1=%%a" & set "p2=%%b" & set "p3=%%c" & set "p4=%%d"
+set "new="
+for /f "tokens=1-4 delims=." %%a in ("!ver!") do (
+  set "p1=%%a" & set "p2=%%b" & set "p3=%%c" & set "p4=%%d"
 )
 if defined p4 (
-    set /a p4=p4+1
-    set "sNew=!p1!.!p2!.!p3!.!p4!"
+  set /a p4=p4+1
+  set "new=!p1!.!p2!.!p3!.!p4!"
 ) else if defined p3 (
-    set /a p3=p3+1
-    set "sNew=!p1!.!p2!.!p3!"
+  set /a p3=p3+1
+  set "new=!p1!.!p2!.!p3!"
 ) else if defined p2 (
-    set "sNew=!p1!.!p2!.1"
+  set "new=!p1!.!p2!.1"
 ) else (
-    set "sNew=!p1!.0.1"
+  set "new=!p1!.0.1"
 )
-if not defined sNew (
-    echo [ERROR] Could not work out the next version from "!sVer!".
-    goto :eof
+if not defined new (
+  echo Could not work out the next version from "!ver!".
+  >> "%log%" echo ERROR: could not work out the next version from "!ver!"
+  goto :eof
 )
-> version.txt echo !sNew!
-echo [INFO] Version: !sVer! -^> !sNew!
-set "sVer=!sNew!"
+set "ver=!new!"
 goto :eof

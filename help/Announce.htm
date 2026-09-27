@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Jamal Mazrui" />
-  <title>ReadMe</title>
+  <title>Announce</title>
   <style>
     html {
       color: #1a1a1a;
@@ -167,62 +167,38 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">ReadMe</h1>
+<h1 class="title">Announce</h1>
 <p class="author">Jamal Mazrui</p>
 </header>
-<h1 id="bookfido-readme">bookFido ReadMe</h1>
-<p>bookFido is the dog that fetches your books. It goes through every
-book you own or have borrowed in Audible, Bookshare, Goodreads, Kindle
-and NLS, and hands you back one catalog you can read: a document, a
-spreadsheet, and a database, all built for a screen reader.</p>
-<p>This is the quick start. The full guide is
-<code>help\bookFido.htm</code>.</p>
-<h2 id="install">Install</h2>
-<ol type="1">
-<li>Download <code>bookFido_setup.exe</code> from the <a
+<h1 id="bookfido-built-on-the-homer-development-kit">bookFido, built on
+the Homer Development Kit</h1>
+<p>bookFido catalogs your book libraries – Audible, Bookshare,
+Goodreads, Kindle and NLS – into one accessible catalog, a workbook and
+a database. Get it from the <a
 href="https://github.com/jamalmazrui/bookFido/releases">bookFido
-releases page</a>.</li>
-<li>Run it. It asks for administrator rights, because it installs for
-everyone on the computer.</li>
-<li>On the last page, leave <strong>Launch bookFido now</strong> checked
-and press Finish. Read the results box, then close it; bookFido
-opens.</li>
-</ol>
-<p>You need Windows 10 or 11, 64-bit. Edge is already part of Windows,
-and nothing else needs installing.</p>
-<h2 id="catalog-your-books">Catalog your books</h2>
-<ol type="1">
-<li>Press <strong>Alt+Control+Shift+B</strong> from anywhere in Windows.
-The opening dialog explains what will happen.</li>
-<li>Leave checked the libraries you want: Audible, Bookshare, Goodreads,
-Kindle and NLS. All are checked to begin with.</li>
-<li>Press Enter.</li>
-<li>If a library asks you to sign in, do it in the Edge window that
-opens, then answer the prompt. Each sign-in is usually needed once.</li>
-</ol>
-<p>bookFido talks you through the run. When it finishes, the combined
-catalog, <code>bookFido.htm</code>, opens from your Downloads folder,
-beside a document for each library and the <code>bookFido.xlsx</code>
-workbook.</p>
-<h2 id="keys-in-the-opening-dialog">Keys in the opening dialog</h2>
+releases page</a>.</p>
+<h2 id="what-is-new">What is new</h2>
 <ul>
-<li><strong>Alt+A</strong>, <strong>Alt+B</strong>,
-<strong>Alt+G</strong>, <strong>Alt+K</strong>, <strong>Alt+N</strong>
-move to the Audible, Bookshare, Goodreads, Kindle and NLS
-checkboxes.</li>
-<li><strong>Enter</strong> starts; <strong>Escape</strong> closes
-without searching.</li>
-<li><strong>F1</strong> shows Help.</li>
-<li><strong>F11</strong> checks the web for a newer version of bookFido
-and offers to install it.</li>
+<li><strong>Update from inside the program.</strong> Press F11 in the
+opening dialog to check GitHub for a newer version. If there is one,
+Enter downloads and starts its installer.</li>
+<li><strong>A log of every run.</strong> Each run keeps its own log in
+<code>%LOCALAPPDATA%\bookFido\logs</code>, so a cancelled run no longer
+empties the log of the run before.</li>
+<li><strong>Your gathered details in one place.</strong> bookFido.db and
+bookFido.json now live in <code>%LOCALAPPDATA%\bookFido\data</code>,
+wherever the program runs from. The first run moves them there.</li>
+<li><strong>A tidier installation.</strong> The program is in the
+<code>exec</code> folder and the documents in <code>help</code>, as in
+every Homer Tools program. The installer’s results box comes before
+bookFido starts, and uninstalling keeps what bookFido has learned.</li>
 </ul>
-<p>All the keys are listed in <code>help\Hotkeys.htm</code>.</p>
-<h2 id="when-something-goes-wrong">When something goes wrong</h2>
-<p>Every run keeps a log in <code>%LOCALAPPDATA%\bookFido\logs</code>,
-one file per run. Zip that folder and send it with a description of what
-happened.</p>
-<h2 id="license">License</h2>
-<p>bookFido is free and open source under the MIT License. See
-<code>License.htm</code>.</p>
+<p>The full list of changes is in History.</p>
+<h2 id="the-companion-tools">The companion tools</h2>
+<p>bookFido is part of the Homer Tools series, beside <a
+href="https://github.com/jamalmazrui/urlFido">urlFido</a>, which
+downloads files from web pages by extension, and <a
+href="https://github.com/JamalMazrui/urlCheck">urlCheck</a>, which
+checks web pages for accessibility.</p>
 </body>
 </html>

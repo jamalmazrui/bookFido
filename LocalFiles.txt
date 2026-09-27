@@ -1,0 +1,27 @@
+﻿# LocalFiles.txt -- what belongs to bookFido on this disk, but never in the repository.
+#
+# tidy keeps these where they are, and writes each line into .gitignore
+# as never pushed. One path or pattern a line; a trailing slash means a folder.
+
+# The built program with its libraries, the installer, and the fetched NuGet
+# packages: all made by buildbookFido, none of them authored.
+bookFido_setup.exe
+exec/
+work/
+
+# One log per run of anything.
+logs/
+
+# Private notes, and what tidy moves aside.
+notes/
+
+# Written by every build from version.txt, which lives only on this machine.
+Version.cs
+version.txt
+
+# The release scripts belong to the separate tagRelease project and stay out
+# of every repository; so does the one-time repository bootstrap.
+createbookFidoRepo.cmd
+createbookFidoRepo.ps1
+scripts/release.cmd
+scripts/release.ps1

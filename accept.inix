@@ -1,0 +1,27 @@
+﻿; accept.inix -- what "done" means for bookFido, checked by scripts\check.
+; Each [check] runs a command in the project folder; Expect is its exit code
+; and Wants, when given, a string its output must contain. bookFido is a
+; windowed program with no command line to answer, so the checks are of
+; what the build produced.
+
+[check]
+Name   = the program was built into exec
+Run    = cmd /c if exist exec\bookFido.exe (exit 0) else (exit 1)
+Expect = 0
+
+[check]
+Name   = the installer was built
+Run    = cmd /c if exist bookFido_setup.exe (exit 0) else (exit 1)
+Expect = 0
+
+[check]
+Name   = the installer ships the full guide
+; findstr reads a backslash as an escape even in /c: text, so it is doubled;
+; written singly, the search was for "help*.htm" and failed.
+Run    = findstr /l /c:"help\\*.htm" bookFido_setup.iss
+Expect = 0
+
+[check]
+Name   = the installer keeps the data folder on uninstall
+Run    = findstr /c:"data folder" bookFido_setup.iss
+Expect = 0

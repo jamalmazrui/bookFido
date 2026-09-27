@@ -1,0 +1,270 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Jamal Mazrui" />
+  <title>bookFido History</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">bookFido History</h1>
+<p class="author">Jamal Mazrui</p>
+</header>
+<h1 id="bookfido-history">bookFido History</h1>
+<h2 id="september-2026-built-on-the-homer-development-kit">September
+2026: built on the Homer Development Kit</h2>
+<p>The first version built by the kit’s build (the number after
+1.1.18).</p>
+<h3 id="whats-new">What’s new</h3>
+<ul>
+<li><strong>Built with HomerDev 1.43.19.</strong> The build refreshes
+the kit’s tools under their current names, and the ones that call each
+other now find each other; <code>scripts\tidy</code>,
+<code>scripts\check</code> and <code>scripts\release</code> carry the
+day’s fixes, among them a release that publishes a draft and confirms it
+is GitHub’s latest.</li>
+<li><strong>Built on the Homer Development Kit.</strong> bookFido
+compiles the kit’s shared classes (Elevate, Inix, Lbc, Log, Paths, Say,
+Util, Web) from <code>C:\HomerDev\CSharp</code> instead of carrying
+copies of Lbc and Say. It follows the Homer layout: the program in
+<code>exec</code>, the documents in <code>help</code>, one log per run
+in <code>logs</code>.</li>
+<li><strong>F11 checks for a newer version.</strong> In the opening
+dialog, F11 asks GitHub for the latest release. Yes is the default when
+a newer version exists and No when this one is current; Yes downloads
+<code>bookFido_setup.exe</code> and starts it. The dialog’s Help (F1)
+ends with the same check.</li>
+<li><strong>One log per run.</strong> Each run writes
+<code>%LOCALAPPDATA%\bookFido\logs\bookFido-yyyyMMdd-HHmmss.log</code>,
+with the environment in its header, and the 30 newest are kept. A
+cancelled run no longer empties the log of the run before, because it
+never shared a file with it.</li>
+<li><strong>The data folder.</strong> bookFido.db and bookFido.json live
+in <code>%LOCALAPPDATA%\bookFido\data</code> wherever the program runs
+from. Before, the state file sat beside the program when that folder was
+writable and in <code>%LOCALAPPDATA%\bookFido</code> otherwise, while
+the database always sat beside the program – which under Program Files
+could not be written, so an installed copy ran without its database. The
+first run moves both, taking the newest copy.</li>
+<li><strong>Documents.</strong> The ReadMe is a quick start; the full
+guide is <code>help\bookFido.md</code> and <code>.htm</code>. New
+Developer, Hotkeys and this History; Announce describes the current
+release.</li>
+</ul>
+<h3 id="installer">Installer</h3>
+<ul>
+<li>The program installs to <code>exec</code>, the documents other than
+ReadMe and License to <code>help</code>.</li>
+<li>The finish page offers Launch (checked) and Open the user guide
+(unchecked). A results box says what was installed and where the logs
+are, and bookFido starts only after that box is closed.</li>
+<li>A reinstall no longer asks for the folder; it goes where the last
+one went.</li>
+<li>The uninstaller removes the logs and the SQLite engine it wrote out,
+and keeps the data folder and the Edge profile with your sign-ins.</li>
+</ul>
+<h3 id="for-developers">For developers</h3>
+<ul>
+<li><code>buildbookFido.cmd</code> is the kit’s C# build template with
+two sections of bookFido’s own: the pinned NuGet libraries, fetched into
+<code>work\nuget</code> and embedded, and the carry-over from the layout
+before.</li>
+<li>The compiler is Roslyn, found with vswhere or installed as the Build
+Tools. The Framework compiler fallback is gone, because the kit’s
+classes need more than C# 5.</li>
+<li><code>RepoFiles.txt</code> and <code>LocalFiles.txt</code> decide
+what git carries; built programs are no longer in the repository.</li>
+<li>The compile is clean: eleven long-standing warnings about variables
+declared and never used, and one field set and never read, are gone, so
+a new warning stands out.</li>
+</ul>
+<h2 id="x-july-2026">1.1.x (July 2026)</h2>
+<ul>
+<li><strong>Five libraries.</strong> Audible, then Kindle, Goodreads,
+Bookshare and, last, NLS (the National Library Service’s BARD reading
+history), each with its own document, a sheet in one bookFido.xlsx
+workbook, and entries in the combined bookFido.htm catalog that opens at
+the end.</li>
+<li><strong>bookFido.db</strong>, in the standard DbDo schema, so
+nothing already gathered is looked up again; a full five-library run
+with a warm database takes about five minutes.</li>
+<li><strong>Twins.</strong> A book held in more than one library is
+recognized as one work, its details gathered once and shared; an
+author’s biography is fetched once.</li>
+<li><strong>The opening dialog</strong>, built with Lbc: an introduction
+and a checkbox for each library, all checked.</li>
+<li><strong>Politeness and resilience.</strong> Paced requests per
+service, rate-limit responses honored, a breaker that stops asking a
+service that declines, state saved every two minutes so a cancelled run
+resumes.</li>
+<li><strong>Bookshare’s early stop</strong>, NLS sign-in and paging
+fixes, a faster startup probe, and publisher names stored without their
+source label.</li>
+</ul>
+<h2 id="july-2026">1.0.0 (21 July 2026)</h2>
+<p>The first release under the name bookFido, formerly GetAudibleInfo:
+the Audible library walk, companion PDFs downloaded under friendly names
+and converted to accessible HTML, and an accessible catalog enriched
+from Audible’s catalog service, Open Library and Wikipedia.</p>
+</body>
+</html>

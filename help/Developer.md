@@ -11,7 +11,7 @@ How bookFido is built, released and laid out, with the facts that cost the most 
 
 `C:\bookFido` mirrors the installed tree:
 
-- At the top: `bookFido.cs` (the program), `buildbookFido.cmd`, `bookFido_setup.iss`, `bookFido.ico`, `accept.inix`, `RepoFiles.txt`, `LocalFiles.txt`, `ReadMe` and `License`.
+- At the top: `bookFido.cs` (the program), `build.cmd`, `bookFido_setup.iss`, `bookFido.ico`, `accept.inix`, `RepoFiles.txt`, `LocalFiles.txt`, `ReadMe` and `License`.
 - `exec` — the built `bookFido.exe`, and beside it copies of the managed libraries it embeds (see below). Never in git.
 - `help` — this document and the others: `bookFido` (the guide), `Announce`, `Developer`, `History`, `Hotkeys`, each as `.md` and `.htm`.
 - `logs` — one log per run of the build or any tool.
@@ -24,7 +24,7 @@ The program's own data is NOT in the project: `bookFido.db`, `bookFido.json` and
 
 ## The four steps
 
-1. `buildbookFido` — steps the version (`buildbookFido nobump` keeps it), fetches the libraries if the pins changed, compiles `exec\bookFido.exe`, writes each `.htm` from its `.md`, puts the project's files in the Homer encoding, checks that the installer ships every file in `help`, and builds `bookFido_setup.exe`. Its log is `logs\bookFido-build-yyyyMMdd-HHmmss.log`.
+1. `build` — steps the version (`build nobump` keeps it), fetches the libraries if the pins changed, compiles `exec\bookFido.exe`, writes each `.htm` from its `.md`, puts the project's files in the Homer encoding, checks that the installer ships every file in `help`, and builds `bookFido_setup.exe`. Its log is `logs\bookFido-build-yyyyMMdd-HHmmss.log`.
 2. `scripts\push "message"` — rewrites the whitelist `.gitignore` from `RepoFiles.txt`, commits and pushes.
 3. `scripts\tidy` and `scripts\tidy --do-it` — the periodic clean.
 4. `scripts\release` — runs `scripts\check`, then tags the pushed commit with the version stamped in `bookFido_setup.exe` and publishes the installer. The published installer is always at the releases page's `latest/download/bookFido_setup.exe`.

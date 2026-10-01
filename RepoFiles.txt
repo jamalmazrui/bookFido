@@ -11,7 +11,7 @@ accept.inix
 bookFido.cs
 bookFido.ico
 bookFido_setup.iss
-buildbookFido.cmd
+build.cmd
 help/Announce.htm
 help/Announce.md
 help/bookFido.htm

@@ -4,7 +4,7 @@
 # as never pushed. One path or pattern a line; a trailing slash means a folder.
 
 # The built program with its libraries, the installer, and the fetched NuGet
-# packages: all made by buildbookFido, none of them authored.
+# packages: all made by build, none of them authored.
 bookFido_setup.exe
 exec/
 work/

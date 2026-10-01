@@ -22,7 +22,7 @@
 // files are not mentioned in the catalog; they sit beside it in Downloads.  The program drives Microsoft Edge through
 // the Chrome DevTools Protocol over a raw WebSocket, the same single-file
 // technique used by urlFido, so it builds to one portable 64-bit exe with the
-// in-box .NET Framework 4.8 compiler.  Build with buildbookFido.cmd,
+// in-box .NET Framework 4.8 compiler.  Build with build.cmd,
 // which produces a GUI (winexe) program with no console window.
 //
 // Flow: an introductory message box explains the program and offers OK or

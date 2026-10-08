@@ -1123,6 +1123,18 @@ class bookFido
     // server's code name.  A file downloaded under a code name by an earlier
     // run is renamed in place instead of downloaded again, and a timed
     // message box announces each real download by its base file name.
+    // AUDIBLE'S COOKIES GO ONLY TO AUDIBLE (8 October 2026, from an audit by another AI): a PDF
+    // link found in an error page can name any site, and the sign-in went with it. They are
+    // attached only when the request's own host is an Audible site, such as audible.com.
+    static void addAudibleCookies(HttpWebRequest httpRequest, string sCookieHeader)
+    {
+        if (sCookieHeader == "") return;
+        if (Regex.IsMatch(httpRequest.RequestUri.Host, @"(^|\.)audible\.(com|ca|co\.uk|de|fr|it|es|in|co\.jp|com\.au|com\.br)$", RegexOptions.IgnoreCase))
+            httpRequest.Headers.Add("Cookie", sCookieHeader);
+        else
+            log("Not sending Audible's cookies to " + httpRequest.RequestUri.Host + ", which is not an Audible site");
+    }
+
     static int attemptDownload(string sUrl, string sBookTitle, string sCookieHeader, string sDownloadDir)
     {
         string sContentType, sDiagnosticPath, sFriendlyPath, sMetaPath, sMetaRoot, sRoot, sServerName, sServerPath, sTargetPath;
@@ -1133,7 +1145,7 @@ class bookFido
         try
         {
             httpRequest = (HttpWebRequest) WebRequest.Create(sUrl);
-            if (sCookieHeader != "") httpRequest.Headers.Add("Cookie", sCookieHeader);
+            addAudibleCookies(httpRequest, sCookieHeader);
             httpRequest.UserAgent = sUserAgent;
             httpRequest.Referer = sLibraryUrl;
             httpRequest.AllowAutoRedirect = true;
@@ -1184,7 +1196,28 @@ class bookFido
                 }
                 sTargetPath = sFriendlyPath != "" ? sFriendlyPath : sServerPath;
                 showTimedMessageBox(Path.GetFileNameWithoutExtension(sTargetPath));
-                using (FileStream fOut = new FileStream(sTargetPath, FileMode.Create, FileAccess.Write)) { httpResponse.GetResponseStream().CopyTo(fOut); }
+                // WHOLE, AND A PDF, OR NOT AT ALL (8 October 2026, from an audit by another AI): the
+                // response went straight to its final name, so a broken transfer, an empty reply or
+                // an error body became a file the next run's existence check trusted. It is written
+                // to a .part file, and moved into place only when it begins as every PDF does.
+                string sPartPath = sTargetPath + ".part";
+                try
+                {
+                    using (FileStream fOut = new FileStream(sPartPath, FileMode.Create, FileAccess.Write)) { httpResponse.GetResponseStream().CopyTo(fOut); }
+                    byte[] abHead = new byte[5];
+                    int iHead;
+                    using (FileStream fIn = File.OpenRead(sPartPath)) { iHead = fIn.Read(abHead, 0, 5); }
+                    if (sTargetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && (iHead < 5 || Encoding.ASCII.GetString(abHead) != "%PDF-"))
+                    {
+                        log("Failed, because the response was not a PDF (" + iHead + " bytes began it): " + sUrl);
+                        return iStatusFailed;
+                    }
+                    File.Move(sPartPath, sTargetPath);
+                }
+                finally
+                {
+                    if (File.Exists(sPartPath)) { try { File.Delete(sPartPath); } catch { } }
+                }
                 if (sFriendlyPath == "")
                 {
                     sMetaRoot = cleanRoot(pdfTitleFromFile(sTargetPath));
@@ -1267,7 +1300,7 @@ class bookFido
         try
         {
             httpRequest = (HttpWebRequest) WebRequest.Create(sProductUrl);
-            if (sCookieHeader != "") httpRequest.Headers.Add("Cookie", sCookieHeader);
+            addAudibleCookies(httpRequest, sCookieHeader);
             httpRequest.UserAgent = sUserAgent;
             httpRequest.AllowAutoRedirect = true;
             httpRequest.Timeout = iHttpTimeoutMs;
@@ -1708,10 +1741,15 @@ class bookFido
             foreach (string sOne in lPage1AsinsSeen) lPage1.Add(sOne);
             dState["page1Asins"] = lPage1;
             dState["catalog"] = lCatalog;
-            dState["kindleCatalog"] = lKindleCatalog;
-            dState["goodreadsCatalog"] = lGoodreadsCatalog;
-            dState["bookshareCatalog"] = lBookshareCatalog;
-            dState["nlsCatalog"] = lNlsCatalog;
+            // A SAVED COLLECTION IS NOT REPLACED BY AN EMPTY ONE (8 October 2026, from an
+            // audit by another AI): the saved Kindle, Goodreads, Bookshare and NLS rows wait
+            // in their own arrays until their phase runs, and a checkpoint during the
+            // Audible phase wrote the still-empty live lists over all four. Each is now
+            // saved from its live list once that has rows, and from its saved rows before.
+            dState["kindleCatalog"] = (lKindleCatalog.Count > 0 || aSavedKindleRows == null) ? (object)lKindleCatalog : aSavedKindleRows;
+            dState["goodreadsCatalog"] = (lGoodreadsCatalog.Count > 0 || aSavedGoodreadsRows == null) ? (object)lGoodreadsCatalog : aSavedGoodreadsRows;
+            dState["bookshareCatalog"] = (lBookshareCatalog.Count > 0 || aSavedBookshareRows == null) ? (object)lBookshareCatalog : aSavedBookshareRows;
+            dState["nlsCatalog"] = (lNlsCatalog.Count > 0 || aSavedNlsRows == null) ? (object)lNlsCatalog : aSavedNlsRows;
             lock (oAuthorLock)
             {
                 dState["authorWikiBio"] = dAuthorWikiBio;
@@ -1724,10 +1762,13 @@ class bookFido
             dState["deadCompanions"] = new List<string>(setDeadCompanions);
             dState["companions"] = dCompanions;
             sJson = jsonCodec.Serialize(dState);
-            sTempPath = statePath() + ".tmp";
+            // NO GAP, AND NO SHARED TEMPORARY NAME (8 October 2026, from an audit by another
+            // AI): the old state was deleted before the new one moved in, and every run used
+            // the same .tmp name. The new state now replaces the old in one step.
+            sTempPath = statePath() + "." + Process.GetCurrentProcess().Id + ".tmp";
             File.WriteAllText(sTempPath, sJson, new UTF8Encoding(false));
-            if (File.Exists(statePath())) File.Delete(statePath());
-            File.Move(sTempPath, statePath());
+            if (File.Exists(statePath())) File.Replace(sTempPath, statePath(), null);
+            else File.Move(sTempPath, statePath());
             log("Saved the state snapshot to " + statePath() + ": " + lCatalog.Count + " titles");
         }
         catch (Exception oException)
@@ -4580,7 +4621,12 @@ class bookFido
         lAuthors = new List<object>();
         if (dItem.ContainsKey("authors") && dItem["authors"] != null)
         {
-            foreach (object oName in (IEnumerable) dItem["authors"])
+            // A STRING IS ONE ITEM, NOT ITS CHARACTERS (8 October 2026, from an audit by another
+            // AI): cast to IEnumerable, a string of authors was walked a character at a time,
+            // and every one-letter "name" was then thrown away.
+            object oAuthors = dItem["authors"];
+            IEnumerable lAuthorItems = oAuthors is string ? new object[] { oAuthors } : (oAuthors as IEnumerable ?? new object[] { oAuthors });
+            foreach (object oName in lAuthorItems)
             {
                 sName = Convert.ToString(oName).Trim();
                 if (sName == "") continue;
@@ -5280,7 +5326,10 @@ class bookFido
             if (sTitle == "") { Monitor.Exit(dRow); continue; }
             runSqlWith("INSERT OR IGNORE INTO books(\"url\", \"title\", \"author\", \"key\", \"first_published\", \"wikipedia_title\", \"description\") VALUES(@u, @t, @a, @k, @f, @w, @d)",
                 new string[] { "@u", catalogValue(dRow, "wikipediaUrl"), "@t", sTitle, "@a", sAuthor, "@k", sKey, "@f", catalogValue(dRow, "firstPublished"), "@w", catalogValue(dRow, "wikipediaTitle"), "@d", catalogValue(dRow, "description") });
-            runSqlWith("UPDATE books SET \"url\" = @u, \"first_published\" = @f, \"wikipedia_title\" = @w, \"description\" = @d, edited = CURRENT_TIMESTAMP WHERE \"key\" = @k AND ((coalesce(\"url\",'') = '' AND @u <> '') OR (coalesce(\"first_published\",'') = '' AND @f <> '') OR (coalesce(\"wikipedia_title\",'') = '' AND @w <> '') OR (coalesce(\"description\",'') = '' AND @d <> ''))",
+            // EACH FIELD FILLED ONLY IF IT IS BLANK (8 October 2026, from an audit by another AI):
+            // when any one field qualified, all four incoming values were assigned, blanks
+            // included, so a year arriving alone erased the address, title and description.
+            runSqlWith("UPDATE books SET \"url\" = CASE WHEN coalesce(\"url\",'') = '' AND @u <> '' THEN @u ELSE \"url\" END, \"first_published\" = CASE WHEN coalesce(\"first_published\",'') = '' AND @f <> '' THEN @f ELSE \"first_published\" END, \"wikipedia_title\" = CASE WHEN coalesce(\"wikipedia_title\",'') = '' AND @w <> '' THEN @w ELSE \"wikipedia_title\" END, \"description\" = CASE WHEN coalesce(\"description\",'') = '' AND @d <> '' THEN @d ELSE \"description\" END, edited = CURRENT_TIMESTAMP WHERE \"key\" = @k AND ((coalesce(\"url\",'') = '' AND @u <> '') OR (coalesce(\"first_published\",'') = '' AND @f <> '') OR (coalesce(\"wikipedia_title\",'') = '' AND @w <> '') OR (coalesce(\"description\",'') = '' AND @d <> ''))",'') = '' AND @u <> '') OR (coalesce(\"first_published\",'') = '' AND @f <> '') OR (coalesce(\"wikipedia_title\",'') = '' AND @w <> '') OR (coalesce(\"description\",'') = '' AND @d <> ''))",
                 new string[] { "@u", catalogValue(dRow, "wikipediaUrl"), "@f", catalogValue(dRow, "firstPublished"), "@w", catalogValue(dRow, "wikipediaTitle"), "@d", catalogValue(dRow, "description"), "@k", sKey });
             sBookUnq = scalarSql("SELECT unq FROM books WHERE \"key\" = @k", "@k", sKey);
             foreach (string[] aPair in lPairs)
@@ -5784,7 +5833,12 @@ class bookFido
             // order, duplicates within the book are dropped, and segments
             // that are plainly not names are discarded.
             HashSet<string> setSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (object oName in (IEnumerable) dItem["authors"])
+            // A STRING IS ONE ITEM, NOT ITS CHARACTERS (8 October 2026, from an audit by another
+            // AI): cast to IEnumerable, a string of authors was walked a character at a time,
+            // and every one-letter "name" was then thrown away.
+            object oAuthors = dItem["authors"];
+            IEnumerable lAuthorItems = oAuthors is string ? new object[] { oAuthors } : (oAuthors as IEnumerable ?? new object[] { oAuthors });
+            foreach (object oName in lAuthorItems)
             {
                 foreach (string sPart in Convert.ToString(oName).Split(':'))
                 {

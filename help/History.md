@@ -5,6 +5,20 @@ author: "Jamal Mazrui"
 
 # bookFido History
 
+## 8 October 2026 -- an audit by another AI
+
+ChatGPT audited bookFido and reported 36 findings. Checked against the code, these held and are fixed:
+
+- **Filling one field no longer erases three others.** When any one of a book's address, first-published year, Wikipedia title or description was blank and a value arrived, all four incoming values were written, blanks included; a year arriving alone erased the other three. Each field is now filled only when it is blank. Reproduced and checked with the program's own SQL.
+- **A checkpoint no longer empties saved collections.** The saved Kindle, Goodreads, Bookshare and NLS rows wait until their phase runs, and a checkpoint during the Audible phase wrote the still-empty lists over all four. Each is now saved from its saved rows until its phase has rows of its own.
+- **No gap when the state is saved.** The old state file was deleted before the new one moved in, and every run used the same temporary name; the new state now replaces the old in one step, under a name of its own.
+- **Audible's sign-in stays with Audible.** Its cookies went to any address downloaded, including a PDF link found in an error page; they now go only to Audible's own sites (audible.com, audible.co.uk and the other Audible stores).
+- **Only a whole PDF is kept.** A download went straight to its final name, so a broken transfer, an empty reply or an error body became a file the next run trusted. It is now written to a .part file and kept only when it begins as every PDF does.
+- **Authors given as one string are read as names.** A string of authors was walked a letter at a time, and every one-letter "name" was then thrown away, in both the Kindle and Bookshare readers.
+- **Kit tools** updated from HomerDev 1.63.3.
+
+Left for later, as larger changes: keys for matching books across libraries that cannot merge two distinct books; one instance at a time; and tabs of a reused browser that are not bookFido's.
+
 ## September 2026: built on the Homer Development Kit
 
 The first version built by the kit's build (the number after 1.1.18).

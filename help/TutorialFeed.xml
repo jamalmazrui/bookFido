@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Homer Tools Walkthroughs</title>
+    <link>Tutorials.htm</link>
+    <description></description>
+    <language>en-us</language>
+    <lastBuildDate>Fri, 09 Oct 2026 18:08:39 +0000</lastBuildDate>
+    <itunes:author></itunes:author>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:category text="Technology"/>
+    <item>
+      <title>0 - Overview</title>
+      <description>Nothing to set up; this walk only listens. Full transcript: Tutorials.htm#0-0-overview</description>
+      <link>Tutorials.htm#0-0-overview</link>
+      <guid isPermaLink="false">homer-tutorial_0_overview</guid>
+      <enclosure url="tutorials/0_Overview.mp3" length="683782" type="audio/mpeg"/>
+      <itunes:duration>00:01:36</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>1 - User Interface</title>
+      <description>bookFido installed; the dialog open with Alt+Control+Shift+B. Full transcript: Tutorials.htm#0a-1-user-interface</description>
+      <link>Tutorials.htm#0a-1-user-interface</link>
+      <guid isPermaLink="false">homer-tutorial_1_user_interface</guid>
+      <enclosure url="tutorials/1_User_Interface.mp3" length="1135385" type="audio/mpeg"/>
+      <itunes:duration>00:02:47</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>2 - Install and Launch</title>
+      <description>bookFido_setup.exe downloaded from the bookFido releases page on GitHub. Full transcript: Tutorials.htm#0b-2-install-and-launch</description>
+      <link>Tutorials.htm#0b-2-install-and-launch</link>
+      <guid isPermaLink="false">homer-tutorial_2_install_and_launch</guid>
+      <enclosure url="tutorials/2_Install_and_Launch.mp3" length="1139305" type="audio/mpeg"/>
+      <itunes:duration>00:02:40</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>3 - Gather Your First Catalog</title>
+      <description>bookFido installed, and the sign-in details for your libraries at hand. Full transcript: Tutorials.htm#0c-3-gather-your-first-catalog</description>
+      <link>Tutorials.htm#0c-3-gather-your-first-catalog</link>
+      <guid isPermaLink="false">homer-tutorial_3_gather_your_first_catalog</guid>
+      <enclosure url="tutorials/3_Gather_Your_First_Catalog.mp3" length="993876" type="audio/mpeg"/>
+      <itunes:duration>00:02:23</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>4 - Read Your Catalog</title>
+      <description>A catalog gathered in walk three. Full transcript: Tutorials.htm#0d-4-read-your-catalog</description>
+      <link>Tutorials.htm#0d-4-read-your-catalog</link>
+      <guid isPermaLink="false">homer-tutorial_4_read_your_catalog</guid>
+      <enclosure url="tutorials/4_Read_Your_Catalog.mp3" length="1055271" type="audio/mpeg"/>
+      <itunes:duration>00:02:31</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>5 - Get Audible Companion PDFs</title>
+      <description>An Audible library with at least one book that has a companion PDF. Full transcript: Tutorials.htm#0e-5-get-audible-companion-pdfs</description>
+      <link>Tutorials.htm#0e-5-get-audible-companion-pdfs</link>
+      <guid isPermaLink="false">homer-tutorial_5_get_audible_companion_pdfs</guid>
+      <enclosure url="tutorials/5_Get_Audible_Companion_PDFs.mp3" length="1007511" type="audio/mpeg"/>
+      <itunes:duration>00:02:18</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>6 - Keep Your Goodreads Shelves</title>
+      <description>A Goodreads account with some shelves and ratings. Full transcript: Tutorials.htm#0f-6-keep-your-goodreads-shelves</description>
+      <link>Tutorials.htm#0f-6-keep-your-goodreads-shelves</link>
+      <guid isPermaLink="false">homer-tutorial_6_keep_your_goodreads_shelves</guid>
+      <enclosure url="tutorials/6_Keep_Your_Goodreads_Shelves.mp3" length="1003670" type="audio/mpeg"/>
+      <itunes:duration>00:02:22</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>7 - Gather NLS and Bookshare History</title>
+      <description>Accounts with NLS BARD and Bookshare. Full transcript: Tutorials.htm#0g-7-gather-nls-and-bookshare-history</description>
+      <link>Tutorials.htm#0g-7-gather-nls-and-bookshare-history</link>
+      <guid isPermaLink="false">homer-tutorial_7_gather_nls_and_bookshare_history</guid>
+      <enclosure url="tutorials/7_Gather_NLS_and_Bookshare_History.mp3" length="1000760" type="audio/mpeg"/>
+      <itunes:duration>00:02:17</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>8 - Use the Catalog in DbDo and Stay Current</title>
+      <description>DbDo installed, and a catalog gathered. Full transcript: Tutorials.htm#0h-8-use-the-catalog-in-dbdo-and-stay-current</description>
+      <link>Tutorials.htm#0h-8-use-the-catalog-in-dbdo-and-stay-current</link>
+      <guid isPermaLink="false">homer-tutorial_8_use_the_catalog_in_dbdo_and_stay_current</guid>
+      <enclosure url="tutorials/8_Use_the_Catalog_in_DbDo_and_Stay_Current.mp3" length="1190432" type="audio/mpeg"/>
+      <itunes:duration>00:02:48</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+    <item>
+      <title>9 - Conclusion</title>
+      <description>Nothing to set up; this walk only listens. Full transcript: Tutorials.htm#0i-9-conclusion</description>
+      <link>Tutorials.htm#0i-9-conclusion</link>
+      <guid isPermaLink="false">homer-tutorial_9_conclusion</guid>
+      <enclosure url="tutorials/9_Conclusion.mp3" length="527254" type="audio/mpeg"/>
+      <itunes:duration>00:01:17</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+  </channel>
+</rss>

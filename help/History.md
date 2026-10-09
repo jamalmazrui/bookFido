@@ -5,6 +5,11 @@ author: "Jamal Mazrui"
 
 # bookFido History
 
+
+## 9 October 2026 -- from the build and release logs
+
+- **The build compiles again.** Line 5332 of bookFido.cs, the statement that fills in a book's missing address, year, title and description, had the second half of its WHERE clause pasted onto its end a second time, after the string had closed; the compiler stopped with "empty character literal". The duplicate is removed and the statement is as intended. A scan of every C# file in every Homer project found no other such damage.
+
 ## 9 October 2026 -- spoken tutorials
 
 **Ten spoken walks, in the Homer pattern of ten.** Walk 0 is an overview and table of contents; 1, the user interface, each control shown as the screen reader speaks it; 2, installing; 3 to 8, tasks around concrete wants -- your first catalog, reading it by title, Audible's companion PDFs, Goodreads shelves, NLS and Bookshare history, and the catalog in DbDo; and 9, the conclusion, with a glossary in two voices and every way to get help. Each task walk is predicted at three minutes or more by the kit's measured model, and every key and feature it teaches was checked against this guide. The build speaks them; the installer ships them and their audio; the repository carries both.

@@ -8,9 +8,6 @@
   <title>History</title>
   <style>
     html {
-      line-height: 1.5;
-      font-family: Georgia, serif;
-      font-size: 20px;
       color: #1a1a1a;
       background-color: #fdfdfd;
     }
@@ -29,13 +26,16 @@
     @media (max-width: 600px) {
       body {
         font-size: 0.9em;
-        padding: 1em;
+        padding: 12px;
       }
       h1 {
         font-size: 1.8em;
       }
     }
     @media print {
+      html {
+        background-color: white;
+      }
       body {
         background-color: transparent;
         color: black;
@@ -85,9 +85,10 @@
       color: #606060;
     }
     code {
-      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
       font-size: 85%;
       margin: 0;
+      hyphens: manual;
     }
     pre {
       margin: 1em 0;
@@ -152,17 +153,17 @@
     div.columns{display: flex; gap: min(4vw, 1.5em);}
     div.column{flex: auto; overflow-x: auto;}
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    ul.task-list{list-style: none;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
     ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
       width: 0.8em;
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
   </style>
-  <!--[if lt IE 9]>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
-  <![endif]-->
 </head>
 <body>
 <header id="title-block-header">
@@ -170,17 +171,6 @@
 <p class="author">Jamal Mazrui</p>
 </header>
 <h1 id="bookfido-history">bookFido History</h1>
-<h2 id="october-2026-from-the-build-and-release-logs">9 October 2026 –
-from the build and release logs</h2>
-<ul>
-<li><strong>The build compiles again.</strong> Line 5332 of bookFido.cs,
-the statement that fills in a book’s missing address, year, title and
-description, had the second half of its WHERE clause pasted onto its end
-a second time, after the string had closed; the compiler stopped with
-“empty character literal”. The duplicate is removed and the statement is
-as intended. A scan of every C# file in every Homer project found no
-other such damage.</li>
-</ul>
 <h2 id="october-2026-spoken-tutorials">9 October 2026 – spoken
 tutorials</h2>
 <p><strong>Ten spoken walks, in the Homer pattern of ten.</strong> Walk

@@ -1,0 +1,135 @@
+﻿; Tutorial_8_Use_the_Catalog_in_DbDo_and_Stay_Current.inix -- use the catalog in dbdo and stay current
+
+[about]
+Title=8 - Use the Catalog in DbDo and Stay Current
+Intro=The catalog as a database you can browse and search in DbDo, the workbook, and keeping everything current with later runs.
+Setup=DbDo installed, and a catalog gathered.
+Homework=Open bookFido's database in DbDo, filter it by one author, and say how many books you have by that author.
+
+[step]
+
+Say=One want: to ask my whole collection questions, such as every book by one author, or everything published before 1950.
+Key=
+
+[step]
+
+Say=Besides the documents, bookFido keeps bookFido dot d b, a database in DbDo's standard shape, in its data folder.
+Key=
+
+[step]
+
+Say=It holds books, authors and publishers as related tables, so each author is one record with all their books beneath it.
+Key=
+
+[step]
+
+Say=I open it in DbDo with Control plus O.
+Key=Control+O
+Hear=Open Database dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The books table opens first.
+Key=
+Hear=books, 450 records
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Control plus F, then the first choice, Any field, finds a word wherever it is: an author's surname, a series, a reader of the book.
+Key=Control+F
+Hear=Filter Records dialog
+Hear=Filter by: list box, Any field contains text
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Enter, I type Tolkien, and Enter again.
+Key=Enter
+Hear=12 records have Tolkien.
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Alt plus Right Arrow goes from a book to its author's record, and from an author to all of their books.
+Key=Alt+Right Arrow
+Hear=authors, 1 record
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The workbook, bookFido dot x l s x, has a sheet for each library, for anyone who prefers a spreadsheet.
+Key=
+
+[step]
+
+Say=Keeping current is a matter of running bookFido again, weekly or monthly, with sign ins remembered by its own browser profile.
+Key=
+
+[step]
+
+Say=If a run is interrupted, the next continues where it stopped, from the progress saved every couple of minutes.
+Key=
+
+[step]
+
+Say=The documents in Downloads are rewritten each time, so the copy you open is always the latest.
+Key=
+
+[step]
+
+Say=In DbDo, Control plus G goes to a record by number, and Shift plus Y says how many records are in view, the same keys as any DbDo database.
+Key=Shift+Y
+Hear=12 records
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Control plus Shift plus F clears the filter, and the whole collection is back.
+Key=Control+Shift+F
+Hear=books, 450 records
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Alt plus O orders the books by any column, such as year, oldest first, for a look at the collection by age.
+Key=Alt+O
+Hear=Order Records dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The database is rewritten by each run, so DbDo shows the latest gathering when it is next opened.
+Key=
+
+[step]
+
+Say=For a spreadsheet user, the workbook's sheets carry a bold header row that the screen reader announces with each cell.
+Key=
+
+[step]
+
+Say=Inside DbDo, Shift plus F12 asks the model on your own computer a question about the table, such as which authors you read most.
+Key=Shift+F12
+Hear=Chat about Table dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Escape closes it, unasked, and the table is as it was.
+Key=Escape
+Hear=books, 450 records
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=And Alt plus X exports the books in view, after a filter, to a spreadsheet or a document of their own.
+Key=Alt+X
+Hear=Export Data dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Questions in DbDo, documents in the browser, a workbook for sorting: one collection, three ways in. The last walk gathers it all.
+Key=

@@ -1,0 +1,137 @@
+﻿; Tutorial_3_Gather_Your_First_Catalog.inix -- gather your first catalog
+
+[about]
+Title=3 - Gather Your First Catalog
+Intro=The first run: choosing libraries, signing in once, and letting bookFido gather everything while you do something else.
+Setup=bookFido installed, and the sign-in details for your libraries at hand.
+Homework=Run bookFido with the libraries you use, and note how long it took and how many books it found.
+
+[step]
+
+Say=One want: every book I own or have read, in one place, gathered once without my having to visit each library.
+Key=
+
+[step]
+
+Say=I open bookFido. I use Audible, Kindle and Goodreads, but not Bookshare or NLS, so I clear those two.
+Key=Alt+B
+Hear=Bookshare check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Space clears Bookshare.
+Key=Space
+Hear=not checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=And NLS.
+Key=Alt+N
+Hear=NLS check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Space.
+Key=Space
+Hear=not checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Enter starts the run. Edge opens with bookFido's own profile.
+Key=Enter
+Hear=Audible sign in
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The first time, Audible wants me to sign in. A box says so, and waits.
+Key=
+Hear=Sign in to Audible in the Edge window, then press OK
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=I sign in in Edge with my Amazon account, as usual, then return to the box and press Enter.
+Key=Enter
+Hear=Reading your Audible library
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=From here it runs by itself. It reads the library page by page, a second or so apart, so it never strains the service.
+Key=
+
+[step]
+
+Say=Kindle uses the same Amazon account, so it usually needs no second sign in.
+Key=
+
+[step]
+
+Say=Goodreads asks once, the same way, and then reads every shelf.
+Key=
+
+[step]
+
+Say=Then the reference step: for each book, Open Library and Wikipedia supply the year, the publisher, a description and the author's biography, by title alone.
+Key=
+
+[step]
+
+Say=A large library takes a while; the run says what it is doing as it goes, so a long wait is never silent.
+Key=
+Hear=Looking up publication details
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=If I need the computer for something else, the run can be cancelled; it saved its progress, and the next run picks up where it left off.
+Key=
+
+[step]
+
+Say=At the end, the combined catalog opens in the browser by itself.
+Key=
+Hear=bookFido, heading level 1
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=A box gives the totals.
+Key=
+Hear=450 books from 3 libraries
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Later runs need no new sign ins, since bookFido's own browser profile remembers them.
+Key=
+
+[step]
+
+Say=While it runs, the computer can be used for other things; bookFido works in its own Edge window, which you can leave alone.
+Key=
+
+[step]
+
+Say=If a library is busy and asks bookFido to slow down, it waits as long as asked, so a run may take longer on a busy evening.
+Key=
+
+[step]
+
+Say=If a library declines again and again, bookFido stops asking it and carries on with the others, and says so at the end.
+Key=
+
+[step]
+
+Say=The first run is the long one: a large Audible library and its companion PDFs can take an hour or more, so starting it before dinner suits it well.
+Key=
+
+[step]
+
+Say=One run, three libraries, one catalog. The next walk reads it.
+Key=

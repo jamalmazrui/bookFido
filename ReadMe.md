@@ -35,6 +35,10 @@ bookFido talks you through the run. When it finishes, the combined catalog, `boo
 
 All the keys are listed in `help\Hotkeys.htm`.
 
+## Learn by listening
+
+Ten short spoken walks teach bookFido, each a few minutes long, in two voices: a host, and a screen reader saying what you would hear. They are installed in the `help\tutorials` folder as mp3 files, with a playlist, and as text in `Tutorials.htm`. Start with walk 0, the overview.
+
 ## When something goes wrong
 
 Every run keeps a log in `%LOCALAPPDATA%\bookFido\logs`, one file per run. Zip that folder and send it with a description of what happened.

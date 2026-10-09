@@ -1,0 +1,73 @@
+﻿; Tutorial_9_Conclusion.inix -- conclusion
+
+[about]
+Title=9 - Conclusion
+Intro=What the walks covered, a glossary in two voices, and where to get help with bookFido.
+Setup=Nothing to set up; this walk only listens.
+Homework=Run bookFido once a month, and look up one book in the catalog before your next purchase.
+
+[step]
+
+Say=That is bookFido. Here is what each walk gave you.
+Key=
+
+[step]
+
+Say=Walk one, the dialog. Walk two, installing and where files live. Walks three and four, your first catalog and reading it. Walk five, Audible's companion PDFs.
+Key=
+
+[step]
+
+Say=Walk six, Goodreads. Walk seven, NLS and Bookshare. Walk eight, the catalog in DbDo, and staying current.
+Key=
+
+[step]
+
+Say=Now a short glossary. I say the term; the other voice says what it means.
+Key=
+
+[step]
+
+Say=Companion PDF.
+Key=
+Hear=A document that comes with an Audible book, such as recipes, maps or slides.
+
+[step]
+
+Say=Combined catalog.
+Key=
+Hear=One document of every book from every library, in order by title.
+
+[step]
+
+Say=BARD.
+Key=
+Hear=The National Library Service's site for downloading talking books and braille.
+
+[step]
+
+Say=Browser profile.
+Key=
+Hear=bookFido's own Edge settings and sign ins, kept apart from your everyday browser.
+
+[step]
+
+Say=Help is a key away: F1 in the dialog shows Help, and Shift plus F1 says the tip for the library you are on.
+Key=F1
+Hear=bookFido Help dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The full guide is in the help folder of the installation, and F11 checks for a newer version.
+Key=
+
+[step]
+
+Say=The bookFido page on GitHub has the latest release and a place to report a problem; each run's log says exactly what happened.
+Key=
+
+[step]
+
+Say=Thank you for listening. Happy reading.
+Key=

@@ -1,0 +1,119 @@
+﻿; Tutorial_7_Gather_NLS_and_Bookshare_History.inix -- gather nls and bookshare history
+
+[about]
+Title=7 - Gather NLS and Bookshare History
+Intro=Gathering the reading history from NLS BARD and the download history from Bookshare, the accessible libraries.
+Setup=Accounts with NLS BARD and Bookshare.
+Homework=Find one talking book you read from NLS in the combined catalog.
+
+[step]
+
+Say=One want: a record of every talking book and accessible book I have read through the libraries for blind readers, not only the ones I bought.
+Key=
+
+[step]
+
+Say=NLS is the National Library Service for the Blind and Print Disabled; its BARD site lends talking books and braille. Bookshare lends accessible ebooks.
+Key=
+
+[step]
+
+Say=I check both boxes and start the run.
+Key=Alt+N
+Hear=NLS check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=BARD asks me to sign in once, in Edge, as it does on the web.
+Key=
+Hear=Sign in to BARD in the Edge window, then press OK
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=bookFido reads my BARD reading history: every book I downloaded, with its date.
+Key=
+Hear=Reading your NLS history
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Bookshare is next, with its own sign in, and then my whole download history.
+Key=
+Hear=Reading your Bookshare history
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=NLS Library dot h t m and Bookshare Library dot h t m are the documents for each.
+Key=
+Hear=NLS Library, heading level 1
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Each opens with statistics: how many books, and how many a year, a reading record that neither site gives at a glance.
+Key=Down Arrow
+Hear=Introduction, with statistics for this library
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Their books join the combined catalog too, and a title read on NLS and owned on Audible is recognized as one work.
+Key=
+
+[step]
+
+Say=The same years, publishers and descriptions are filled in, so a talking book's entry is as full as a purchased one.
+Key=
+
+[step]
+
+Say=Library history is the part of a reading life most easily lost, and now it is kept with the rest.
+Key=
+
+[step]
+
+Say=Each library's document has its own table of contents, so its years or its letters are a link away.
+Key=
+
+[step]
+
+Say=BARD and Bookshare are read with the same politeness as the others, a request at a time, so a long history takes a while the first time.
+Key=
+
+[step]
+
+Say=Talking books borrowed years ago come back into view, which is the point: a reading life, not only a collection.
+Key=
+
+[step]
+
+Say=A book borrowed from NLS and later bought on Audible is recognized as one work, so its details are gathered once and shared.
+Key=
+
+[step]
+
+Say=The workbook has a sheet for each of these libraries too, sortable by any column.
+Key=
+
+[step]
+
+Say=NLS Library dot m d and Bookshare Library dot m d are the Markdown copies, for a text editor or a braille display.
+Key=
+
+[step]
+
+Say=Bookshare's history includes books downloaded for school or work, so a record of study reading is kept as well.
+Key=
+
+[step]
+
+Say=A run with only NLS and Bookshare checked brings these two up to date without visiting the shops.
+Key=
+
+[step]
+
+Say=The libraries for blind readers, gathered like the others. The last task walk takes the catalog into DbDo.
+Key=

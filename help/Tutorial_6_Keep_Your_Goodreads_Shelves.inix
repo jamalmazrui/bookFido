@@ -1,0 +1,126 @@
+﻿; Tutorial_6_Keep_Your_Goodreads_Shelves.inix -- keep your goodreads shelves
+
+[about]
+Title=6 - Keep Your Goodreads Shelves
+Intro=Gathering every Goodreads shelf, with ratings, dates and reviews, into a document of your own.
+Setup=A Goodreads account with some shelves and ratings.
+Homework=Find your highest-rated books in the Goodreads document.
+
+[step]
+
+Say=One want: my reading record from Goodreads, every shelf, rating and review, in a document I keep, whatever Goodreads does next.
+Key=
+
+[step]
+
+Say=With Goodreads checked, bookFido reads each shelf of My Books in turn: read, currently reading, want to read, and any shelves you made yourself.
+Key=
+Hear=Reading the shelf: read
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=For each book it keeps my rating, the dates I started and finished, and my review, word for word.
+Key=
+
+[step]
+
+Say=Goodreads Library dot h t m is the document for this library alone. I open it.
+Key=
+Hear=Goodreads Library, heading level 1
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Its introduction gives the statistics: books per shelf, average rating, and books read each year.
+Key=Down Arrow
+Hear=Introduction, with statistics for each shelf
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Each shelf is a heading, then its books in order by title.
+Key=H
+Hear=Want to read, heading level 2
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=A book's entry ends with my review, so what I wrote at the time is right there.
+Key=Down Arrow
+Hear=Review: The slow start pays off completely.
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The want-to-read shelf is a ready shopping list, and the read shelf a record for recommendations.
+Key=
+
+[step]
+
+Say=The workbook, bookFido dot x l s x, has a Goodreads sheet that sorts by rating or date, for questions like my favourites of last year.
+Key=
+
+[step]
+
+Say=Goodreads books also appear in the combined catalog, marked as read on Goodreads, beside the copies I own elsewhere.
+Key=
+
+[step]
+
+Say=A review written since the last run arrives on the next one, so the document stays a true record.
+Key=
+
+[step]
+
+Say=Nothing is posted to Goodreads; bookFido only reads.
+Key=
+
+[step]
+
+Say=The want-to-read shelf in particular is worth keeping: it is the list of books chosen over years, and it is now in a document of your own.
+Key=
+
+[step]
+
+Say=Shelves you made yourself keep their names, so a shelf of favourites or of book club picks stays together.
+Key=
+
+[step]
+
+Say=Goodreads Library dot m d, the Markdown copy, opens in any text editor, for reading a review on a phone or pasting it into an email.
+Key=
+
+[step]
+
+Say=Sorting the Goodreads sheet in the workbook by rating, highest first, answers which books you liked best.
+Key=
+
+[step]
+
+Say=A run with only Goodreads checked is quick, and suits the day you finish a book and write its review.
+Key=
+
+[step]
+
+Say=The read shelf with its dates is also a record of when you read what, which a year-end look back can draw on.
+Key=
+
+[step]
+
+Say=A friend's recommendation can be checked against the read shelf in a moment, by searching the page for the title.
+Key=Control+F
+Hear=Find on page, edit
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Escape closes the find box at the match.
+Key=Escape
+Hear=The Name of the Wind (2007), heading level 3
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=A reading life kept in one document, with every rating and review. The next walk gathers NLS and Bookshare.
+Key=

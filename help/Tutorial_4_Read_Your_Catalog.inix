@@ -1,0 +1,132 @@
+﻿; Tutorial_4_Read_Your_Catalog.inix -- read your catalog
+
+[about]
+Title=4 - Read Your Catalog
+Intro=Reading the combined catalog: in order by title, each book with its year, its library, and the details each library offers.
+Setup=A catalog gathered in walk three.
+Homework=Find one book in the catalog by its first letter, and read its whole entry.
+
+[step]
+
+Say=One want: to find out whether I already own a book before buying it, and what I thought of it.
+Key=
+
+[step]
+
+Say=The catalog, bookFido dot h t m, is in my Downloads folder. I open it in the browser.
+Key=
+Hear=bookFido, heading level 1
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=It begins with an introduction: how many books, from which libraries, and when it was gathered.
+Key=Down Arrow
+Hear=450 books, gathered 9 October 2026
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Then a table of contents, one link for each letter of the alphabet.
+Key=K
+Hear=link, A
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Books are in order by title, the way a library shelves them: The and A at the start of a title are ignored, so The Hobbit is under H.
+Key=
+
+[step]
+
+Say=I want a book beginning with S, so I follow that letter's link.
+Key=Enter
+Hear=S, heading level 2
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Each book is a heading of its own, with its publication year in parentheses.
+Key=H
+Hear=Shadow of the Wind (2001), heading level 3
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Down Arrow reads its entry: the author, the library it is in, and the details that library offers.
+Key=Down Arrow
+Hear=Author: Carlos Ruiz Zafon
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=For an Audible book, who reads it and how long it runs.
+Key=Down Arrow
+Hear=Read by Jonathan Davis. 18 hours 54 minutes
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=For a Goodreads book, my rating and the date I read it.
+Key=Down Arrow
+Hear=My rating: 5 of 5. Read: March 2024
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Then the description and the author's biography, filled in from Open Library and Wikipedia.
+Key=
+
+[step]
+
+Say=A book you own in more than one library is recognized as one work, so its details are gathered once and shared.
+Key=
+
+[step]
+
+Say=Control plus F, the browser's find, finds any word, such as an author's surname.
+Key=Control+F
+Hear=Find on page, edit
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The same catalog is also there as Markdown, bookFido dot m d, for reading in a text editor or keeping in your own notes.
+Key=
+
+[step]
+
+Say=And each library has a document of its own, such as Audible Library, with statistics about that library alone.
+Key=
+
+[step]
+
+Say=All of them are plain documents: no sign in, no network, nothing to install, so they open on any computer or phone.
+Key=
+
+[step]
+
+Say=Before buying a book, a search of this one page answers whether you have it already.
+Key=
+
+[step]
+
+Say=Each book's heading is level three under its letter, so the reader's heading keys move book by book, and Insert plus F6 lists them all.
+Key=Insert+F6
+Hear=Headings list
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Typing the first letters of a title in that list moves to it, the quickest way to one book in a long catalog.
+Key=
+
+[step]
+
+Say=Authors' biographies are kept in the catalog too, so a new author's background is a few lines away from their book.
+Key=
+
+[step]
+
+Say=One catalog, in order by title, with the details each library knows. The next walk is about Audible's PDFs.
+Key=

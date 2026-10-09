@@ -1,0 +1,143 @@
+﻿; Tutorial_2_Install_and_Launch.inix -- install and launch
+
+[about]
+Title=2 - Install and Launch
+Intro=Installing bookFido for everyone on the computer, opening it from anywhere, and where its files are kept.
+Setup=bookFido_setup.exe downloaded from the bookFido releases page on GitHub.
+Homework=After installing, find bookFido in the Start menu, and open its data folder in File Explorer.
+
+[step]
+
+Say=One want: bookFido on this computer, opened with one key, and knowing where everything it makes will be.
+Key=
+
+[step]
+
+Say=I open the downloaded setup program. It installs for everyone, so Windows asks for administrator rights; I say yes.
+Key=Enter
+Hear=Setup - bookFido dialog
+Hear=Welcome to the bookFido Setup Wizard
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The welcome page summarizes the license: bookFido is free and open source. Enter takes Next.
+Key=Enter
+Hear=Select Destination Location
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The default folder in Program Files is right, and an update later goes to the same place without asking.
+Key=Enter
+Hear=Ready to Install
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Enter installs.
+Key=Enter
+Hear=Installing
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The last page offers to launch bookFido now.
+Key=
+Hear=Launch bookFido now check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=I press Finish, and a short box says what was installed and where the logs are.
+Key=Enter
+Hear=bookFido setup complete
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=When I close it, bookFido opens on its dialog.
+Key=Enter
+Hear=bookFido dialog
+Hear=Audible check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=From now on, Alt plus Control plus Shift plus B opens it from anywhere in Windows, and the Start menu has it too.
+Key=
+
+[step]
+
+Say=Microsoft Edge must be installed, since bookFido drives it; on Windows 10 and 11 it already is.
+Key=
+
+[step]
+
+Say=The catalogs it makes go to your Downloads folder, so they are easy to find after every run.
+Key=
+
+[step]
+
+Say=Its own working files, including the database, live in its data folder in your application data, apart from the program.
+Key=
+
+[step]
+
+Say=Each run keeps a log there too, which says exactly what each library returned, for the day something looks wrong.
+Key=
+
+[step]
+
+Say=Updating is one key: F11 in the dialog asks GitHub for a newer version, and Enter installs it when one is out.
+Key=F11
+Hear=Checking for a newer version
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Uninstalling, from Installed apps in Windows Settings, removes the program and leaves your catalogs and your database where they are.
+Key=
+
+[step]
+
+Say=Your library sign ins stay in bookFido's own browser profile, never in the program folder, so an update keeps them.
+Key=
+
+[step]
+
+Say=If setup ever stops partway, running it again finishes the job; its log says what happened.
+Key=
+
+[step]
+
+Say=bookFido is in the Start menu's list of programs, where typing its first letters finds it.
+Key=Windows
+Hear=Start
+Hear=bookFido
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Its documents, including this guide's full text, are in the help folder of the installation, so they can be read before the first run.
+Key=
+
+[step]
+
+Say=Nothing is downloaded at install time beyond the program; Edge and your libraries are reached only when a run begins.
+Key=
+
+[step]
+
+Say=The first run asks for each library's sign in, so having those details at hand before starting saves a pause.
+Key=
+
+[step]
+
+Say=A desktop key that does nothing usually means another program claimed it first; the Start menu entry always works.
+Key=
+
+[step]
+
+Say=Installed, opened with one key, and its files known. The next walk gathers your first catalog.
+Key=

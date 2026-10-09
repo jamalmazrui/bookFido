@@ -1,0 +1,66 @@
+﻿; Tutorial_0_Overview.inix -- overview
+
+[about]
+Title=0 - Overview
+Intro=What bookFido is, what it gathers, and the ten walks that teach it.
+Setup=Nothing to set up; this walk only listens.
+Homework=List the libraries you use: Audible, Kindle, Goodreads, Bookshare, NLS. Walk three gathers them.
+
+[step]
+
+Say=Welcome. This is the first of ten short walks through bookFido. I am the host; the other voice is the screen reader, speaking as it would on your own computer.
+Key=
+
+[step]
+
+Say=Two reader keys help in every walk. If a line goes by too fast, Insert plus Up Arrow says it again.
+Key=Insert+Up Arrow
+Hear=OK button
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=And whenever you are unsure where you are, Insert plus Tab says what has the focus.
+Key=Insert+Tab
+Hear=Audible check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=bookFido gathers every book you own or have read, from up to five libraries, into one catalog you can read, search and sort.
+Key=
+
+[step]
+
+Say=The libraries are Audible, Kindle, Goodreads, Bookshare, and NLS, the National Library Service's talking book collection.
+Key=
+
+[step]
+
+Say=It signs in as you in Microsoft Edge and reads the same pages you would read yourself, politely and slowly, and it sends nothing about your books anywhere.
+Key=
+
+[step]
+
+Say=Then it fills in what the libraries leave out: publication years, publishers, descriptions, and author biographies, from Open Library and Wikipedia.
+Key=
+
+[step]
+
+Say=The result is one combined catalog in order by title, a document for each library, a workbook, and a database you can browse in DbDo.
+Key=
+
+[step]
+
+Say=Here are the walks. One, the dialog. Two, installing. Three, your first catalog. Four, reading it. Five, Audible's companion PDFs.
+Key=
+
+[step]
+
+Say=Six, Goodreads shelves and reviews. Seven, NLS and Bookshare history. Eight, the catalog in DbDo and keeping it current. Nine, the conclusion, a glossary, and help.
+Key=
+
+[step]
+
+Say=Each walk is a few minutes long and builds on the last, so they are best heard in order the first time. Walk one comes next.
+Key=

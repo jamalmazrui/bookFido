@@ -1,0 +1,155 @@
+﻿; Tutorial_1_User_Interface.inix -- user interface
+
+[about]
+Title=1 - User Interface
+Intro=The bookFido dialog: one check box for each library, the keys that work anywhere in it, and what happens after OK.
+Setup=bookFido installed; the dialog open with Alt+Control+Shift+B.
+Homework=Open the dialog, clear one library with its letter, then press Shift+F1 to hear its tip.
+
+[step]
+
+Say=One want: to choose which libraries to gather, and to know what happens next, before the browser opens.
+Key=
+
+[step]
+
+Say=I press the desktop key for bookFido. Its opening dialog explains what will happen, and the focus is on the first library.
+Key=Alt+Control+Shift+B
+Hear=bookFido dialog
+Hear=Audible check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=There is one check box for each library, all checked to begin with. Each has an underlined letter, the first of its name.
+Key=
+
+[step]
+
+Say=Audible is A.
+Key=Alt+A
+Hear=Audible check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Bookshare is B.
+Key=Alt+B
+Hear=Bookshare check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Goodreads is G.
+Key=Alt+G
+Hear=Goodreads check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Kindle is K.
+Key=Alt+K
+Hear=Kindle check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=And NLS is N.
+Key=Alt+N
+Hear=NLS check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Space clears a library you do not use, so bookFido skips it.
+Key=Space
+Hear=not checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Space again checks it.
+Key=Space
+Hear=checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Tab moves through the boxes in order, and Shift plus Tab goes back.
+Key=Shift+Tab
+Hear=Kindle check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Shift plus F1 says the tip for the box you are on.
+Key=Shift+F1
+Hear=Kindle: every book on the same Amazon account
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=F1 shows Help: each box with its tip, and the dialog's keys.
+Key=F1
+Hear=bookFido Help dialog
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Escape closes Help and returns here.
+Key=Escape
+Hear=Kindle check box, checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Enter, or Control plus Enter from any control, starts the run. Escape closes the dialog without gathering anything.
+Key=Tab
+Hear=OK button
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=After OK, Edge opens. A library that needs you to sign in says so in a box; you sign in in Edge, then answer the box, and the run carries on.
+Key=
+Hear=Sign in to Audible in the Edge window, then press OK
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Each sign in is usually needed once, because bookFido keeps a browser profile of its own, separate from your everyday Edge.
+Key=
+
+[step]
+
+Say=The rest is automatic. Progress is saved every couple of minutes, so a run can be cancelled and the next one continues where this one stopped.
+Key=
+
+[step]
+
+Say=F11 checks for a newer version of bookFido, at any time in the dialog.
+Key=F11
+Hear=Checking for a newer version
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=The dialog is the only window bookFido shows before Edge opens, so everything to decide is decided here.
+Key=
+
+[step]
+
+Say=A library left unchecked is not visited at all: no page is opened and no sign in asked for, so a run can cover just one library when that is all you need.
+Key=Alt+N
+Hear=NLS check box, not checked
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Your choice of boxes can differ from run to run: Goodreads alone after finishing a book, all five once a month.
+Key=
+
+[step]
+
+Say=That is the whole dialog: five libraries and a key for each. The next walk installs bookFido.
+Key=

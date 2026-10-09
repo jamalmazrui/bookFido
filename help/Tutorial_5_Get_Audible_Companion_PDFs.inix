@@ -1,0 +1,118 @@
+﻿; Tutorial_5_Get_Audible_Companion_PDFs.inix -- get audible companion pdfs
+
+[about]
+Title=5 - Get Audible Companion PDFs
+Intro=The companion PDFs that come with some Audible books: downloaded under friendly names and converted to accessible web pages.
+Setup=An Audible library with at least one book that has a companion PDF.
+Homework=Open one companion PDF's web page, and move through it by heading.
+
+[step]
+
+Say=One want: the charts, maps and recipes that come with some audiobooks, in a form I can actually read.
+Key=
+
+[step]
+
+Say=Many Audible books include a companion PDF: a cookbook's recipes, a history's maps, a course's slides. Audible's own page makes them hard to find and harder to read.
+Key=
+
+[step]
+
+Say=During the Audible step, bookFido downloads every companion PDF it finds, without being asked.
+Key=
+Hear=Downloading 3 companion PDFs
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Each is saved under a friendly name, the book's title, rather than the code Audible gives it.
+Key=
+
+[step]
+
+Say=Its web page version is made from it, so either the original or the page can be opened, whichever suits the moment.
+Key=
+
+[step]
+
+Say=And each is converted to an accessible web page, with headings and text, beside the PDF itself.
+Key=
+
+[step]
+
+Say=I open the companion's web page from Downloads in the browser.
+Key=Enter
+Hear=The Joy of Cooking, heading level 1
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=H moves by heading through the recipes, the way any converted page reads.
+Key=H
+Hear=Breads, heading level 2
+Note=Confirm the wording with a live run: buildTutorials -live.
+
+[step]
+
+Say=Text in the PDF reads as text; a page that was only a picture, such as a scanned map, says so, since it has no words to give.
+Key=
+
+[step]
+
+Say=The original PDF is kept too, for printing or for sharing with someone who wants the pages as they were.
+Key=
+
+[step]
+
+Say=A book that gains a companion later gets it on the next run, since bookFido checks every time.
+Key=
+
+[step]
+
+Say=Companion PDFs belong to you as part of the purchase, so bookFido keeps them in your own folders and nowhere else.
+Key=
+
+[step]
+
+Say=For a course or a cookbook, the companion is often half the value, and now it is readable.
+Key=
+
+[step]
+
+Say=PDFs are converted with an engine built into bookFido, so nothing else needs to be installed for this step.
+Key=
+
+[step]
+
+Say=A recipe's ingredients, a map's legend, a course's outline: whatever text the PDF holds becomes headings, lists and paragraphs to move through.
+Key=
+
+[step]
+
+Say=Some companions are mostly pictures; their pages hold whatever text they have, and the PDF is there for sighted help when needed.
+Key=
+
+[step]
+
+Say=Because each PDF is named for its book, a list of the folder in File Explorer reads as a list of titles.
+Key=
+
+[step]
+
+Say=A run with only Audible checked is a quick way to collect new companions after buying a few books.
+Key=
+
+[step]
+
+Say=Companions come in many shapes: a workbook of exercises, a booklet of photographs, the full text of a speech. Each is kept, whatever its shape.
+Key=
+
+[step]
+
+Say=When an audiobook refers to page twelve of the accompanying material, the web page is where to find it.
+Key=
+
+[step]
+
+Say=Every companion, downloaded, named and readable. The next walk turns to Goodreads.
+Key=

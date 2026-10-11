@@ -172,6 +172,14 @@
 <h2 id="october-2026-from-an-audit-and-a-report">11 October 2026 – from
 an audit and a report</h2>
 <ul>
+<li><strong>No run ends unseen.</strong> Every run of 1.1.29 and 1.1.31
+on 11 October stopped right after the log’s header, with no error, no
+message and no “session end”, so neither a crash nor a hang could be
+told apart. An unhandled-error handler is now set first in Main, for any
+thread, writing the full error to the session log and showing it in a
+message box; start-up writes a checkpoint at each step, so the last one
+names where a stopped run stopped; and each log line reaches the file
+before the console.</li>
 <li><strong>The last installer survives a failed build, and error 110 is
 retried.</strong> Inno Setup removes its output before writing, so
 1.1.31’s failure, “EndUpdateResource failed (110)”, left no installer at

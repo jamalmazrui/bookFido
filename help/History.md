@@ -8,6 +8,7 @@ author: "Jamal Mazrui"
 
 ## 11 October 2026 -- from an audit and a report
 
+- **No run ends unseen.** Every run of 1.1.29 and 1.1.31 on 11 October stopped right after the log's header, with no error, no message and no "session end", so neither a crash nor a hang could be told apart. An unhandled-error handler is now set first in Main, for any thread, writing the full error to the session log and showing it in a message box; start-up writes a checkpoint at each step, so the last one names where a stopped run stopped; and each log line reaches the file before the console.
 - **The last installer survives a failed build, and error 110 is retried.** Inno Setup removes its output before writing, so 1.1.31's failure, "EndUpdateResource failed (110)", left no installer at all. Inno now writes bookFido_setup.building.exe, which replaces bookFido_setup.exe only when complete; error 110 is tried again at most twice, ten seconds apart, and any other failure stops at once.
 - **Launch after setup works on a first install.** The installer's Launch box writes a marker file into %LOCALAPPDATA%\\<App>\\logs, but on a first install that folder did not exist yet -- it was made later, when setup kept its log -- so the marker could not be written, and the program did not start after setup. The marker line now makes the folder first. Found by an audit of bookFido by another AI, and fixed in every Homer installer.
 

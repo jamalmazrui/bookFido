@@ -234,16 +234,33 @@ class bookFido
     {
         int iExitCode;
 
+        // NO SILENT DEATH (11 October 2026). Every run of 1.1.29 and 1.1.31 that day stopped after the log's header,
+        // with no error and no "session end": nothing the program could see. These handlers are set first, so an
+        // exception anywhere -- before the try below, in a type's static setup, on another thread -- is written to the
+        // session log in full and shown in a message box, instead of ending the process unseen.
+        AppDomain.CurrentDomain.UnhandledException += delegate(object oSender, UnhandledExceptionEventArgs evArgs)
+        {
+            reportFatal("an unhandled error", evArgs.ExceptionObject as Exception);
+        };
+        Application.ThreadException += delegate(object oSender, System.Threading.ThreadExceptionEventArgs evArgs)
+        {
+            reportFatal("an error in a window", evArgs.Exception);
+        };
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         AppDomain.CurrentDomain.AssemblyResolve += resolveEmbeddedAssembly;
         // ONE SESSION LOG PER RUN, from Homer's Log: %LOCALAPPDATA%\bookFido\logs\
         // bookFido-yyyyMMdd-HHmmss.log, the environment already in its header.
         // A run that is cancelled no longer empties the log of the run before,
         // because each run has a file of its own.
         Log.start("bookFido");
+        // CHECKPOINTS, straight to the session log, so the last one written says where a stopped run stopped.
+        Log.info("Start-up: the session log is open");
         sLogFilePath = Log.path;
+        Log.info("Start-up: the program's settings are ready");
         // F11 in the opening dialog, and the version section of its Help box,
         // ask GitHub through this whether a newer bookFido exists.
         Elevate.configure(c_sGitHubOwner, "bookFido", sVersionText);
+        Log.info("Start-up: the update check is configured; starting the main task");
         iExitCode = 0;
         try { iExitCode = mainAsync().GetAwaiter().GetResult(); }
         catch (Exception oException)
@@ -271,6 +288,7 @@ class bookFido
         DialogResult dialogResultAnswer;
         List<string> lRetry;
 
+        Log.info("Start-up: the main task is running");
         dtRunStart = DateTime.Now;
         log("bookFido started, version " + sVersionText);
         log("Embedded assemblies in this exe: " + string.Join(", ", Assembly.GetExecutingAssembly().GetManifestResourceNames()));
@@ -560,11 +578,26 @@ class bookFido
         sLine = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + sMessage;
         lock (oLogLock)
         {
-            Console.WriteLine(sLine);
             // Through Homer's Log, which holds its session file open with
             // AutoFlush, so every line is on disk the moment it is written.
+            // THE FILE FIRST (11 October 2026): the line reaches the log even if the console cannot take it.
             Log.line(sLine);
+            try { Console.WriteLine(sLine); } catch { }
         }
+    }
+
+    // reportFatal: an error nothing else caught, written in full to the session log and shown, so no run ends unseen.
+    static bool reportFatal(string sWhere, Exception oError)
+    {
+        string sText = oError == null ? "(no details)" : oError.ToString();
+        try { Log.error("FATAL, " + sWhere + ": " + sText); Log.close(); } catch { }
+        try
+        {
+            MessageBox.Show("bookFido stopped because of " + sWhere + ":\r\n\r\n" + (oError == null ? "(no details)" : oError.GetType().Name + ": " + oError.Message) +
+                "\r\n\r\nThe session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        catch { }
+        return true;
     }
 
     // Thread-safe jitter, because the Random class is not safe to share.

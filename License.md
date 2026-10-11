@@ -18,5 +18,5 @@ bookFido is distributed as a single executable with its dependencies embedded. T
 
 - PdfPig, used to read companion PDF files — Apache License 2.0.
 - EPPlus 4, used to write the spreadsheet workbook — GNU Lesser General Public License.
-- Microsoft.Data.Sqlite and SQLitePCLRaw, used for bookFido.db — MIT License.
+- Microsoft.Data.Sqlite and SQLitePCLRaw, used to write DbDo's BookTrail database — MIT License.
 - SQLite itself is in the public domain.

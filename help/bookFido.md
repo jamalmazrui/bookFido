@@ -31,12 +31,12 @@ In your Downloads folder, after every run:
 - **A document for each library** — Audible_Library, Kindle_Library, Goodreads_Library, Bookshare_Library, and NLS_Library, each in both HTML and Pandoc-flavored Markdown, with a table of contents, an introduction with statistics, every book's details, and appendixes indexing the library by author, narrator, series, genre, publisher, subject, and rating, ending with About the Authors.
 - **bookFido.xlsx** — one workbook with a sortable sheet for each library.
 
-And in its data folder, `%LOCALAPPDATA%\bookFido\data`, **bookFido.db**, a SQLite database in the standard [DbDo](https://github.com/jamalmazrui/DbDo) schema, holding your books, authors, and publishers as related records you can browse and query in DbDo itself.
+And, when [DbDo](https://github.com/jamalmazrui/DbDo) is installed for you, **your books in DbDo's BookTrail**, the book list it ships with. Each copy of each book is one row: a book you have on Audible and from BARD is two rows, each with its own format, source, narrator and catalog number, and sorting by author keeps them together. Every row carries what bookFido found: publisher, first publication, language, length, pages, ISBN, your progress, ratings, the Wikipedia article, and the companion files it saved. Each author joins BookTrail's author list with a biography. Your own entries are safe: bookFido fills only blank fields, moves a status only forward, from want to read to reading to read, and only adds tags and notes. Without DbDo, no database is written.
 
 ## Why it is pleasant to use
 
 - **It talks.** Timed message boxes announce each page found, each book cataloged, and the estimated minutes remaining, each one focused so your screen reader speaks it in its own voice.
-- **It remembers.** Everything gathered is kept in bookFido.db and a state snapshot, so a second run never looks up what it already knows. A first full catalog can take hours; the runs after it take minutes.
+- **It remembers.** Everything gathered is kept in BookTrail, when DbDo is installed, and in a state snapshot, so a second run never looks up what it already knows. A first full catalog can take hours; the runs after it take minutes.
 - **It is polite to the web.** One request per second per service, rate-limit responses honored, and a circuit breaker that steps back from a service that has closed its door for the day.
 - **It respects your conventions.** Titles order by title, ignoring a leading A, An, or The; authors order by surname. Spreadsheets carry one region at cell A1, a bold header row, and a ColumnTitle01 name so JAWS announces column headers, with a truly empty cell wherever a value is unknown.
 - **It knows a book from its twin.** A title you own in more than one library is recognized as one work, so its details are gathered once and shared, and an author's biography is fetched only once however many books they wrote.
@@ -73,7 +73,7 @@ The rest is automatic. You can cancel at any point: progress is saved every coup
 ## Where bookFido keeps its files
 
 - **Your catalogs**: in your Downloads folder, as listed under What you get.
-- **What it has learned**: `bookFido.db` and the state snapshot `bookFido.json`, in `%LOCALAPPDATA%\bookFido\data`. Versions before the move to the Homer Development Kit kept them beside the program; the first run of this version moves them there, taking the newest copy when there is more than one.
+- **What it has learned**: the state snapshot `bookFido.json`, in `%LOCALAPPDATA%\bookFido\data`, and, with DbDo, BookTrail, in `%LOCALAPPDATA%\DbDo\data\BookTrail`. A `bookFido.db` from an earlier version is no longer used, and can be deleted. Versions before the move to the Homer Development Kit kept them beside the program; the first run of this version moves them there, taking the newest copy when there is more than one.
 - **Its browser profile**, which holds your sign-ins: `%LOCALAPPDATA%\bookFido\EdgeProfile`.
 - **Logs**: one per run, in `%LOCALAPPDATA%\bookFido\logs`, named for the moment the run started; the 30 newest are kept. If something goes wrong, zip that folder and send it.
 

@@ -96,6 +96,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -114,6 +115,7 @@ using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 class bookFido
@@ -551,7 +553,7 @@ class bookFido
             (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
             (lNlsCatalog.Count > 0 ? "NLS reading history: " + lNlsCatalog.Count + " books cataloged as NLS_Library.htm and NLS_Library.md.  " : "") +
             "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
-            (bDbUpdated ? "Gathered details were remembered in bookFido.db, in the data folder under %LOCALAPPDATA%\\bookFido, in the standard DbDo schema.  " : "The database was not used this run" + (sDbStatus == "" ? "" : ": " + sDbStatus) + ".  ") +
+            (bDbUpdated ? "Your libraries were written to DbDo's BookTrail, one row for each copy of each book, in %LOCALAPPDATA%\\DbDo\\data\\BookTrail.  " : (sDbStatus == "" ? "No database was written, because DbDo is not installed for you.  " : "BookTrail could not be written this run: " + sDbStatus + ".  ")) +
             "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.";
         log(sSummary);
         writeSummarySections();
@@ -3417,7 +3419,8 @@ class bookFido
         string sHtmPath;
 
         sHtmPath = Path.ChangeExtension(sPdfPath, ".htm");
-        if (File.Exists(sHtmPath)) { log("The HTML version already exists: " + sHtmPath); return iHtmStatusExisted; }
+        if (File.Exists(sHtmPath) && !isOlderBookFidoHtm(sHtmPath)) { log("The HTML version already exists: " + sHtmPath); return iHtmStatusExisted; }
+        if (File.Exists(sHtmPath)) log("The HTML version was made by an earlier converter, so it is made again: " + sHtmPath);
         log("Creating an HTML version for: " + Path.GetFileName(sPdfPath));
         try
         {
@@ -3451,11 +3454,62 @@ class bookFido
     // list, or a paragraph with hyphenated line breaks rejoined.  Images are
     // dropped, and any /Alt descriptions found in the raw PDF are listed in
     // an Image descriptions section at the end.
+    // THE MARK OF THIS CONVERTER (11 October 2026): an .htm bookFido made before it, without this mark, is made
+    // again once, so the better reading reaches the files already there; a file anyone else made is left alone.
+    const string c_sHtmGenerator = "bookFido companion converter 2";
+
+    static bool letterIsBold(Letter oLetter)
+    {
+        string sFont;
+
+        if (oLetter.FontDetails != null && oLetter.FontDetails.IsBold) return true;
+        sFont = (oLetter.FontDetails != null ? oLetter.FontDetails.Name ?? "" : "").ToLowerInvariant();
+        return sFont.Contains("bold") || sFont.Contains("black") || sFont.Contains("heavy") || sFont.Contains("semibold");
+    }
+
+    static bool blockIsBold(TextBlock oBlock)
+    {
+        int iBold, iCount;
+
+        iBold = 0;
+        iCount = 0;
+        foreach (TextLine oLine in oBlock.TextLines)
+            foreach (Word oWord in oLine.Words)
+                foreach (Letter oLetter in oWord.Letters)
+                {
+                    if (string.IsNullOrWhiteSpace(oLetter.Value)) continue;
+                    iCount = iCount + 1;
+                    if (letterIsBold(oLetter)) iBold = iBold + 1;
+                }
+        return iCount > 0 && iBold == iCount;
+    }
+
+    // An .htm bookFido made with an earlier converter: no generator mark, and the shell its converter always wrote.
+    static bool isOlderBookFidoHtm(string sHtmPath)
+    {
+        string sHead;
+
+        try
+        {
+            using (StreamReader oReader = new StreamReader(sHtmPath, Encoding.UTF8))
+            {
+                char[] aBuffer = new char[1200];
+                int iRead = oReader.Read(aBuffer, 0, aBuffer.Length);
+                sHead = new string(aBuffer, 0, iRead);
+            }
+        }
+        catch (Exception) { return false; }
+        if (sHead.Contains(c_sHtmGenerator)) return false;
+        if (sHead.Contains("name=\"generator\"")) return sHead.Contains("content=\"bookFido companion converter");
+        return sHead.Contains("<meta charset=\"utf-8\">\r\n<title>") && sHead.Contains("</head>\r\n<body>\r\n<main>\r\n<h1>");
+    }
+
     static void convertPdfToHtm(string sPdfPath, string sHtmPath)
     {
+        bool bBoldHeadings;
         double nBlockSize, nBodySize, nCount, nSize;
-        int iLastLevel, iLevel;
-        string sBlockText, sCarry, sDocTitle, sHay, sLang, sNormalized;
+        int iBoldLetters, iBoldLevel, iLastLevel, iLetters, iLevel;
+        string sBlockText, sCarry, sDocTitle, sHay, sLang, sNormalized, sTagged, sTaggedHow;
         Dictionary<double, double> dSizeCounts;
         Dictionary<double, int> dTierLevels;
         Dictionary<string, int> dRepeatCounts;
@@ -3468,6 +3522,8 @@ class bookFido
 
         dSizeCounts = new Dictionary<double, double>();
         lAllPages = new List<List<TextBlock>>();
+        iBoldLetters = 0;
+        iLetters = 0;
         using (PdfDocument pdfDocument = PdfDocument.Open(sPdfPath))
         {
             foreach (Page pdfPage in pdfDocument.GetPages())
@@ -3475,11 +3531,17 @@ class bookFido
                 foreach (Letter pdfLetter in pdfPage.Letters)
                 {
                     nSize = Math.Round(pdfLetter.PointSize * 2.0) / 2.0;
+                    iLetters = iLetters + 1;
+                    if (letterIsBold(pdfLetter)) iBoldLetters = iBoldLetters + 1;
                     if (!dSizeCounts.ContainsKey(nSize)) dSizeCounts[nSize] = 0;
                     dSizeCounts[nSize] = dSizeCounts[nSize] + 1;
                 }
                 lPageBlocks = new List<TextBlock>(DocstrumBoundingBoxes.Instance.GetBlocks(NearestNeighbourWordExtractor.Instance.GetWords(pdfPage.Letters)));
-                lPageBlocks.Sort(compareTextBlocks);
+                // IN READING ORDER (11 October 2026), as HomerScribe reads a page: PdfPig's own detector, so a
+                // two-column page reads down each column rather than across the gutter. Top-to-bottom,
+                // left-to-right is kept for a page the detector cannot order.
+                try { lPageBlocks = new List<TextBlock>(UnsupervisedReadingOrderDetector.Instance.Get(lPageBlocks)); }
+                catch (Exception) { lPageBlocks.Sort(compareTextBlocks); }
                 lAllPages.Add(lPageBlocks);
             }
         }
@@ -3492,6 +3554,11 @@ class bookFido
         lHeadingSizes.Reverse();
         dTierLevels = new Dictionary<double, int>();
         foreach (double nOne in lHeadingSizes) dTierLevels[nOne] = Math.Min(4, 2 + dTierLevels.Count);
+        // BOLD HEADINGS (11 October 2026): a heading set in body-sized bold type became a paragraph, since only
+        // larger sizes were headings. A short bold block is a heading one level below the size tiers -- unless
+        // much of the document is bold, when bold says nothing.
+        bBoldHeadings = iLetters > 0 && iBoldLetters * 100 < iLetters * 30;
+        iBoldLevel = Math.Min(4, 2 + dTierLevels.Count);
         // Count how many pages contain each short normalized block text, so
         // running headers and footers can be dropped as pagination artifacts.
         dRepeatCounts = new Dictionary<string, int>();
@@ -3515,11 +3582,16 @@ class bookFido
         sDocTitle = pdfTitleFromHay(sHay);
         if (cleanRoot(sDocTitle) == "") sDocTitle = Path.GetFileNameWithoutExtension(sPdfPath);
         sbHtml = new StringBuilder();
-        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"" + htmlText(sLang) + "\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>" + htmlText(sDocTitle) + "</title>\r\n</head>\r\n<body>\r\n<main>\r\n");
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"" + htmlText(sLang) + "\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<meta name=\"generator\" content=\"" + c_sHtmGenerator + "\">\r\n<title>" + htmlText(sDocTitle) + "</title>\r\n</head>\r\n<body>\r\n<main>\r\n");
         sbHtml.Append("<h1>" + htmlText(sDocTitle) + "</h1>\r\n");
         iLastLevel = 1;
+        // A TAGGED PDF SAYS WHAT EACH PIECE IS (11 October 2026): its own headings, lists, tables and figure
+        // descriptions are used when its tags reach most of the text; otherwise the pages are read by layout.
+        sTagged = PdfStructure.bodyHtml(sPdfPath, out sTaggedHow);
+        log("Structure of " + Path.GetFileName(sPdfPath) + ": " + sTaggedHow);
+        if (sTagged != "") sbHtml.Append(sTagged);
         sCarry = "";
-        foreach (List<TextBlock> lBlocks in lAllPages)
+        if (sTagged == "") foreach (List<TextBlock> lBlocks in lAllPages)
         {
             foreach (TextBlock textBlock in lBlocks)
             {
@@ -3546,6 +3618,8 @@ class bookFido
                 nBlockSize = blockPointSize(textBlock);
                 iLevel = 0;
                 if (dTierLevels.ContainsKey(nBlockSize)) iLevel = dTierLevels[nBlockSize];
+                if (iLevel == 0 && bBoldHeadings && sBlockText.Length <= 120 && textBlock.TextLines.Count <= 2
+                    && !Regex.IsMatch(sBlockText, @"[.,;:]$") && blockIsBold(textBlock)) iLevel = iBoldLevel;
                 if (iLevel > 0 && sBlockText.Length <= 200)
                 {
                     if (iLevel > iLastLevel + 1) iLevel = iLastLevel + 1;
@@ -3557,7 +3631,8 @@ class bookFido
                 sbHtml.Append("<p>" + htmlText(sBlockText) + "</p>\r\n");
             }
         }
-        lAltTexts = altTextsFromHay(sHay);
+        // A tagged document's descriptions are already in place, beside their figures.
+        lAltTexts = sTagged == "" ? altTextsFromHay(sHay) : new List<string>();
         if (lAltTexts.Count > 0)
         {
             sbHtml.Append("<h2>Image descriptions</h2>\r\n<p>The PDF contains images with the following alternative text descriptions.</p>\r\n<ul>\r\n");
@@ -4996,8 +5071,8 @@ class bookFido
     }
 
 
-    // ---- The bookFido.db database ---------------------------------------
-    // Metadata already captured lives in bookFido.db in the data folder, in
+    // ---- The database engine (BookTrail since 11 October 2026; bookFido.db before) ---------------
+    // Metadata already captured lives in the database, in
     // the standard DbDo schema, so the same database opens directly in DbDo
     // and nothing already known is ever searched for again.  The engine is
     // Microsoft's SQLite library, which needs no ADO provider and carries a
@@ -5014,6 +5089,9 @@ class bookFido
 
         try
         {
+            // BOOKTRAIL, ONLY WHERE DBDO IS (11 October 2026): no database is made when DbDo is not installed.
+            sDbPath = bookTrailPath();
+            if (sDbPath == "") { sDbStatus = ""; return; }
             sEnginePath = extractNativeEngine();
             if (sEnginePath == "") { sDbStatus = "the SQLite engine could not be prepared"; log("The database is unavailable this run: " + sDbStatus); return; }
             // The engine's own folder joins the search path and the engine is
@@ -5034,9 +5112,9 @@ class bookFido
                 log("Batteries_V2 could not initialize (" + oInit.Message + "), so the provider is registered directly");
                 SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
             }
-            sDbPath = Path.Combine(dataDir(), "bookFido.db");
-            log("Opening the database file: " + sDbPath);
-            connectionDb = new SqliteConnection("Data Source=" + sDbPath);
+            log("Opening BookTrail: " + sDbPath);
+            // Wait up to thirty seconds for DbDo, which may have it open, and hold no file once closed.
+            connectionDb = new SqliteConnection("Data Source=" + sDbPath + ";Default Timeout=30;Pooling=False");
             connectionDb.Open();
             sVersion = "";
             using (SqliteCommand commandVersion = connectionDb.CreateCommand())
@@ -5047,7 +5125,7 @@ class bookFido
             ensureSchema();
             loadMetadataCache();
             sDbStatus = "";
-            log("The database is open on SQLite " + sVersion + ": " + sDbPath + ", with " + dCachedBooks.Count + " books already captured");
+            log("BookTrail is open on SQLite " + sVersion + ": " + sDbPath + ", with " + dCachedBooks.Count + " works already gathered");
         }
         catch (Exception oException)
         {
@@ -5107,67 +5185,473 @@ class bookFido
     // stamps, the domain fields, notes and tags, the generated look and unq
     // columns, and marked.  Records relate through the maps table by their
     // unq strings, with a kind naming the relationship.
+    // ---- BookTrail: what bookFido gathers, in DbDo's book database (11 October 2026) ---------------------------
+    //
+    // INSTEAD OF bookFido.db. When DbDo is installed for this user -- %LOCALAPPDATA%\DbDo exists -- bookFido writes
+    // into DbDo's BookTrail.db, so the libraries it gathers are one reader's book list, opened, searched and edited in
+    // DbDo. When DbDo is not there, no database is written at all; the .htm, .md and .xlsx files are the output.
+    //
+    // ONE ROW PER COPY. A book on Audible and from BARD is two rows: format, source, catalog number and narrator
+    // describe a copy. A row is known by author, title and source -- BookTrail's prime -- and work holds the
+    // cross-library key every copy of one work shares, which is also what lets a later run reuse what was gathered.
+    //
+    // WHO OWNS WHICH FIELD. What the source says -- format, catalog number, link, publisher, first published,
+    // language, length, pages, ISBN, progress, average rating and its count, Wikipedia, files, work -- is refreshed on
+    // every run. What a reader may have written -- status, rating, dates, genre, series, volume, narrator, summary,
+    // reason -- is filled only where it is blank, except that a status only ever moves forward: want to read, then
+    // reading, then read. Tags and notes only gain lines. Nothing a reader typed is overwritten.
+
+    const string c_sBookTrailLook = "look TEXT GENERATED ALWAYS AS (rtrim(iif(author IS NOT NULL AND length(CAST(author AS TEXT))>0, CAST(author AS TEXT) || ' | ', '') || iif(title IS NOT NULL AND length(CAST(title AS TEXT))>0, CAST(title AS TEXT) || ' | ', '') || iif(series IS NOT NULL AND length(CAST(series AS TEXT))>0, CAST(series AS TEXT) || ' | ', '') || iif(volume IS NOT NULL AND length(CAST(volume AS TEXT))>0, CAST(volume AS TEXT) || ' | ', '') || iif(source IS NOT NULL AND length(CAST(source AS TEXT))>0, CAST(source AS TEXT) || ' | ', ''), ' | ')) STORED";
+    const string c_sBookTrailPrime = "prime TEXT GENERATED ALWAYS AS (coalesce(CAST(author AS TEXT),'')||'|'||coalesce(CAST(title AS TEXT),'')||'|'||coalesce(CAST(source AS TEXT),'')) STORED";
+    static readonly string[] aBookTrailColumns = new string[] {
+        "title TEXTLINE", "subtitle TEXTLINE", "author TEXTLINE", "narrator TEXTLINE", "series TEXTLINE", "volume TEXTLINE",
+        "status TEXTLINE", "format TEXTLINE", "source TEXTLINE", "catalog_number TEXTLINE", "genre TEXTLINE", "rating TEXTLINE",
+        "date_added TEXTLINE", "date_read TEXTLINE", "reason TEXTLINE", "summary TEXTMARKDOWN",
+        "publisher TEXTLINE", "first_published TEXTLINE", "language TEXTLINE", "length TEXTLINE", "pages TEXTLINE", "isbn TEXTLINE",
+        "progress TEXTLINE", "avg_rating TEXTLINE", "ratings_count TEXTLINE", "wikipedia TEXTLINE", "files TEXTMEMO", "work TEXTLINE" };
+    static readonly string[] aBookTrailTail = new string[] { "url TEXTLINE", "notes TEXTMARKDOWN", "tags TEXTMEMO" };
+    static readonly string[] aOwnedFields = new string[] { "format", "catalog_number", "url", "publisher", "first_published", "language", "length", "pages", "isbn", "progress", "avg_rating", "ratings_count", "wikipedia", "files", "work" };
+    static readonly string[] aFillFields = new string[] { "subtitle", "narrator", "series", "volume", "genre", "rating", "date_added", "date_read", "summary" };
+
+    // The BookTrail database to write, or "" when DbDo is not installed for this user. A DbDo that has never opened
+    // BookTrail gets it from DbDo's installed template, as DbDo itself would give it.
+    static string bookTrailPath()
+    {
+        string sDbDo, sDb, sFolder;
+
+        sDbDo = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DbDo");
+        if (!Directory.Exists(sDbDo)) { log("DbDo is not installed for this user (no " + sDbDo + "), so no database is written; the documents are the output"); return ""; }
+        sFolder = Path.Combine(sDbDo, "data", "BookTrail");
+        sDb = Path.Combine(sFolder, "BookTrail.db");
+        if (File.Exists(sDb)) return sDb;
+        foreach (string sRoot in new string[] { Environment.GetEnvironmentVariable("ProgramFiles") ?? "", Environment.GetEnvironmentVariable("ProgramFiles(x86)") ?? "" })
+        {
+            string sTemplate = Path.Combine(sRoot, "DbDo", "templates", "BookTrail", "BookTrail.db");
+            if (sRoot == "" || !File.Exists(sTemplate)) continue;
+            try
+            {
+                Directory.CreateDirectory(sFolder);
+                File.Copy(sTemplate, sDb);
+                string sInix = Path.Combine(Path.GetDirectoryName(sTemplate), "BookTrail.inix");
+                if (File.Exists(sInix) && !File.Exists(Path.Combine(sFolder, "BookTrail.inix"))) File.Copy(sInix, Path.Combine(sFolder, "BookTrail.inix"));
+                log("BookTrail was made from DbDo's template: " + sTemplate + " to " + sDb);
+                return sDb;
+            }
+            catch (Exception oError) { log("BookTrail could not be made from " + sTemplate + ": " + oError.Message); }
+        }
+        log("DbDo's folder is here but BookTrail is not, and no DbDo template was found to make it from, so no database is written");
+        return "";
+    }
+
+    static List<string[]> sqlRows(string sSql, int iColumns)
+    {
+        List<string[]> lRows = new List<string[]>();
+        using (SqliteCommand commandRead = connectionDb.CreateCommand())
+        {
+            commandRead.CommandText = sSql;
+            using (SqliteDataReader readerRows = commandRead.ExecuteReader())
+            {
+                while (readerRows.Read())
+                {
+                    string[] aRow = new string[iColumns];
+                    for (int iAt = 0; iAt < iColumns; iAt = iAt + 1) aRow[iAt] = readerRows.IsDBNull(iAt) ? "" : Convert.ToString(readerRows.GetValue(iAt));
+                    lRows.Add(aRow);
+                }
+            }
+        }
+        return lRows;
+    }
+
+    // BookTrail as bookFido needs it: the new fields, and a prime of author, title and source. An older BookTrail is
+    // rebuilt in one transaction, keeping every row, every column a reader added, and every link in maps.
     static void ensureSchema()
     {
-        runSql("CREATE TABLE IF NOT EXISTS \"books\" (" +
-            " book_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            " added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " \"url\" TEXTLINE," +
-            " \"title\" TEXT," +
-            " \"author\" TEXT," +
-            " \"key\" TEXTLINE," +
-            " \"first_published\" TEXTLINE," +
-            " \"wikipedia_title\" TEXT," +
-            " \"description\" TEXTMEMO," +
-            " notes TEXTMEMO," +
-            " tags TEXTMEMO," +
-            " look TEXT GENERATED ALWAYS AS (rtrim(iif(title IS NOT NULL AND length(CAST(title AS TEXT))>0, CAST(title AS TEXT) || ' | ', '') || iif(author IS NOT NULL AND length(CAST(author AS TEXT))>0, CAST(author AS TEXT) || ' | ', ''), ' | ')) STORED," +
-            " unq TEXT GENERATED ALWAYS AS (coalesce(CAST(title AS TEXT),'')||'|'||coalesce(CAST(author AS TEXT),'')) STORED," +
-            " marked INTEGER NOT NULL DEFAULT 0)");
-        runSql("CREATE UNIQUE INDEX IF NOT EXISTS ux_books_key ON books(\"key\")");
-        try { runSql("ALTER TABLE books ADD COLUMN \"description\" TEXTMEMO"); } catch (Exception) { }
-        runSql("CREATE TABLE IF NOT EXISTS \"authors\" (" +
-            " author_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            " added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " \"url\" TEXTLINE," +
-            " \"name\" TEXT," +
-            " \"wiki_bio\" TEXTMEMO," +
-            " \"ol_bio\" TEXTMEMO," +
-            " notes TEXTMEMO," +
-            " tags TEXTMEMO," +
-            " look TEXT GENERATED ALWAYS AS (rtrim(iif(name IS NOT NULL AND length(CAST(name AS TEXT))>0, CAST(name AS TEXT) || ' | ', ''), ' | ')) STORED," +
-            " unq TEXT GENERATED ALWAYS AS (coalesce(CAST(name AS TEXT),'')) STORED," +
-            " marked INTEGER NOT NULL DEFAULT 0)");
-        runSql("CREATE UNIQUE INDEX IF NOT EXISTS ux_authors_name ON authors(\"name\")");
-        runSql("CREATE TABLE IF NOT EXISTS \"publishers\" (" +
-            " publisher_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            " added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " \"url\" TEXTLINE," +
-            " \"name\" TEXT," +
-            " notes TEXTMEMO," +
-            " tags TEXTMEMO," +
-            " look TEXT GENERATED ALWAYS AS (rtrim(iif(name IS NOT NULL AND length(CAST(name AS TEXT))>0, CAST(name AS TEXT) || ' | ', ''), ' | ')) STORED," +
-            " unq TEXT GENERATED ALWAYS AS (coalesce(CAST(name AS TEXT),'')) STORED," +
-            " marked INTEGER NOT NULL DEFAULT 0)");
-        runSql("CREATE UNIQUE INDEX IF NOT EXISTS ux_publishers_name ON publishers(\"name\")");
-        runSql("CREATE TABLE IF NOT EXISTS \"maps\" (" +
-            " map_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-            " added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-            " tbl1 TEXTLINE," +
-            " unq1 TEXTLINE," +
-            " kind TEXTLINE," +
-            " tbl2 TEXTLINE," +
-            " unq2 TEXTLINE," +
-            " notes TEXTMARKDOWN," +
-            " tags TEXTMEMO," +
-            " look TEXT GENERATED ALWAYS AS (rtrim(iif(tbl1 IS NOT NULL AND length(CAST(tbl1 AS TEXT))>0, CAST(tbl1 AS TEXT) || ' | ', '') || iif(unq1 IS NOT NULL AND length(CAST(unq1 AS TEXT))>0, CAST(unq1 AS TEXT) || ' | ', '') || iif(kind IS NOT NULL AND length(CAST(kind AS TEXT))>0, CAST(kind AS TEXT) || ' | ', '') || iif(tbl2 IS NOT NULL AND length(CAST(tbl2 AS TEXT))>0, CAST(tbl2 AS TEXT) || ' | ', '') || iif(unq2 IS NOT NULL AND length(CAST(unq2 AS TEXT))>0, CAST(unq2 AS TEXT) || ' | ', ''), ' | ')) STORED," +
-            " unq TEXT GENERATED ALWAYS AS (coalesce(CAST(tbl1 AS TEXT),'')||'|'||coalesce(CAST(unq1 AS TEXT),'')||'|'||coalesce(CAST(kind AS TEXT),'')||'|'||coalesce(CAST(tbl2 AS TEXT),'')||'|'||coalesce(CAST(unq2 AS TEXT),'')) STORED," +
-            " marked INTEGER NOT NULL DEFAULT 0)");
-        runSql("CREATE UNIQUE INDEX IF NOT EXISTS ux_maps_pair ON maps(tbl1, unq1, kind, tbl2, unq2)");
+        List<string> lsCols, lsCopy, lsExtra, lsKnown, lsNames;
+        string sCopy, sDdl, sTableSql;
+
+        sTableSql = scalarSql("SELECT sql FROM sqlite_master WHERE name = @n", "@n", "books");
+        lsNames = new List<string>();
+        Dictionary<string, string> dHave = new Dictionary<string, string>();
+        foreach (string[] aRow in sqlRows("PRAGMA table_xinfo(books)", 7)) { if (aRow[6] == "0") dHave[aRow[1]] = aRow[2]; }
+        int iPrimeAt = sTableSql.IndexOf("prime TEXT", StringComparison.Ordinal);
+        if (dHave.ContainsKey("work") && iPrimeAt >= 0 && sTableSql.Substring(iPrimeAt).Contains("CAST(source AS TEXT)")) { log("BookTrail's structure is current"); return; }
+        lsKnown = new List<string> { "book_id", "added", "edited", "marked" };
+        foreach (string sCol in aBookTrailColumns) lsKnown.Add(sCol.Split(' ')[0]);
+        foreach (string sCol in aBookTrailTail) lsKnown.Add(sCol.Split(' ')[0]);
+        lsExtra = new List<string>();
+        foreach (KeyValuePair<string, string> oCol in dHave) if (!lsKnown.Contains(oCol.Key)) lsExtra.Add(oCol.Key + " " + (oCol.Value == "" ? "TEXT" : oCol.Value));
+        lsCols = new List<string>(aBookTrailColumns);
+        lsCols.AddRange(lsExtra);
+        lsCols.AddRange(aBookTrailTail);
+        sDdl = "CREATE TABLE \"books\" (\n  book_id INTEGER PRIMARY KEY AUTOINCREMENT,\n  added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  "
+            + string.Join(",\n  ", lsCols.ToArray()) + ",\n  " + c_sBookTrailLook + ",\n  " + c_sBookTrailPrime + ",\n  marked INTEGER NOT NULL DEFAULT 0\n)";
+        lsCopy = new List<string>();
+        foreach (string sName in dHave.Keys)
+        {
+            bool bKept = sName == "book_id" || sName == "added" || sName == "edited" || sName == "marked";
+            foreach (string sCol in lsCols) if (sCol.Split(' ')[0] == sName) bKept = true;
+            if (bKept) lsCopy.Add("\"" + sName + "\"");
+        }
+        sCopy = string.Join(", ", lsCopy.ToArray());
+        List<string> lsEdited = new List<string>();
+        foreach (string sCol in lsCols) lsEdited.Add(sCol.Split(' ')[0]);
+        List<string> lsOf = new List<string>(), lsWhen = new List<string>();
+        foreach (string sName in lsEdited) { lsOf.Add("\"" + sName + "\""); lsWhen.Add("OLD.\"" + sName + "\" IS NOT NEW.\"" + sName + "\""); }
+        using (SqliteTransaction transactionShape = connectionDb.BeginTransaction())
+        {
+            runSql("ALTER TABLE \"books\" RENAME TO \"books_before\"");
+            runSql(sDdl);
+            runSql("INSERT INTO \"books\" (" + sCopy + ") SELECT " + sCopy + " FROM \"books_before\"");
+            runSql("DROP TABLE \"books_before\"");
+            runSql("CREATE UNIQUE INDEX books_prime ON books(prime)");
+            runSql("CREATE TRIGGER \"trg_books_edited\" AFTER UPDATE OF " + string.Join(", ", lsOf.ToArray()) + " ON \"books\" FOR EACH ROW WHEN " + string.Join(" OR ", lsWhen.ToArray()) + " BEGIN UPDATE \"books\" SET edited = CURRENT_TIMESTAMP WHERE \"book_id\" = NEW.\"book_id\"; END");
+            runSql("CREATE TRIGGER \"trg_books_maps\" AFTER UPDATE ON \"books\" FOR EACH ROW WHEN OLD.prime IS NOT NEW.prime BEGIN UPDATE maps SET prime1 = NEW.prime WHERE tbl1 = 'books' AND prime1 = OLD.prime; UPDATE maps SET prime2 = NEW.prime WHERE tbl2 = 'books' AND prime2 = OLD.prime; END");
+            runSql("CREATE TRIGGER \"trg_books_maps_delete\" AFTER DELETE ON \"books\" FOR EACH ROW BEGIN DELETE FROM maps WHERE (tbl1 = 'books' AND prime1 = OLD.prime) OR (tbl2 = 'books' AND prime2 = OLD.prime); END");
+            foreach (string sSide in new string[] { "1", "2" })
+                runSql("UPDATE maps SET prime" + sSide + " = (SELECT b.prime FROM books b WHERE coalesce(b.author,'')||'|'||coalesce(b.title,'') = maps.prime" + sSide + " LIMIT 1) WHERE tbl" + sSide + " = 'books' AND EXISTS (SELECT 1 FROM books b WHERE coalesce(b.author,'')||'|'||coalesce(b.title,'') = maps.prime" + sSide + ")");
+            runSql("INSERT OR IGNORE INTO lookups (tbl, fld, val, ordinal, src) VALUES ('books', 'source', 'Goodreads', (SELECT coalesce(max(ordinal),0)+1 FROM lookups WHERE fld='source'), 'BookTrail')");
+            transactionShape.Commit();
+        }
+        log("BookTrail's structure was brought up to date: " + lsCopy.Count + " columns kept" + (lsExtra.Count > 0 ? ", including " + lsExtra.Count + " a reader added" : ""));
+    }
+
+    // What an earlier run gathered, read back from BookTrail, so it is not asked for again: each work's first
+    // publication, Wikipedia article, description and publisher, and each author's biography and link.
+    static void loadMetadataCache()
+    {
+        Dictionary<string, string> dCached;
+        string sName, sTitle;
+
+        foreach (string[] aRow in sqlRows("SELECT work, first_published, wikipedia, summary, publisher FROM books WHERE coalesce(work,'') <> '' ORDER BY length(coalesce(summary,'')) DESC", 5))
+        {
+            if (dCachedBooks.ContainsKey(aRow[0])) continue;
+            dCached = new Dictionary<string, string>();
+            if (aRow[1] != "") dCached["firstPublished"] = aRow[1];
+            if (aRow[2] != "")
+            {
+                dCached["wikipediaUrl"] = aRow[2];
+                sTitle = Uri.UnescapeDataString(aRow[2].Substring(aRow[2].LastIndexOf('/') + 1)).Replace('_', ' ');
+                if (sTitle != "") dCached["wikipediaTitle"] = sTitle;
+            }
+            if (aRow[3] != "") dCached["description"] = aRow[3];
+            if (aRow[4] != "") dCached["publisher"] = aRow[4];
+            dCachedBooks[aRow[0]] = dCached;
+        }
+        foreach (string[] aRow in sqlRows("SELECT val, url, descrip FROM lookups WHERE tbl = 'books' AND fld = 'author' AND src = 'bookFido'", 3))
+        {
+            sName = givenFirst(aRow[0]);
+            if (aRow[1] != "") dAuthorWikiUrl[sName] = aRow[1];
+            if (aRow[2] != "") dAuthorWikiBio[sName] = aRow[2];
+            setAuthorsCheckedWiki.Add(sName);
+            setAuthorsCheckedOl.Add(sName);
+        }
+    }
+
+    // Everything gathered, written to BookTrail in one transaction once the lanes have drained.
+    static void saveDatabase()
+    {
+        int iBookCount;
+
+        if (connectionDb == null) return;
+        try
+        {
+            using (SqliteTransaction transactionSave = connectionDb.BeginTransaction())
+            {
+                iBookCount = 0;
+                foreach (Dictionary<string, object> dRow in lCatalog) iBookCount = iBookCount + saveCopy(dRow, "Audible");
+                foreach (Dictionary<string, object> dRow in lKindleCatalog) iBookCount = iBookCount + saveCopy(dRow, "Kindle");
+                foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) iBookCount = iBookCount + saveCopy(dRow, "Goodreads");
+                foreach (Dictionary<string, object> dRow in lBookshareCatalog) iBookCount = iBookCount + saveCopy(dRow, "Bookshare");
+                foreach (Dictionary<string, object> dRow in lNlsCatalog) iBookCount = iBookCount + saveCopy(dRow, "BARD (NLS)");
+                saveAuthors();
+                transactionSave.Commit();
+                log("BookTrail was updated: " + iBookCount + " copies across the five libraries");
+                bDbUpdated = true;
+            }
+            connectionDb.Close();
+            connectionDb = null;
+        }
+        catch (Exception oException)
+        {
+            sDbStatus = oException.Message;
+            log("BookTrail could not be updated, so this run's gathering stays in the state snapshot and the documents: " + oException.Message);
+        }
+    }
+
+    // One copy of one book, from one library's row: its BookTrail fields, written as described above.
+    static int saveCopy(Dictionary<string, object> dRow, string sSource)
+    {
+        Dictionary<string, string> d;
+        List<string> lTags, lNotes;
+        List<string[]> lAuthors;
+        string sTitle, sOriginalAuthor;
+
+        Monitor.Enter(dRow);
+        try
+        {
+            sTitle = catalogValue(dRow, "title");
+            if (sTitle == "") return 0;
+            lAuthors = catalogLinks(dRow, "authors");
+            sOriginalAuthor = lAuthors.Count > 0 ? lAuthors[0][0] : "";
+            d = new Dictionary<string, string>();
+            lTags = new List<string>();
+            lNotes = new List<string>();
+            d["title"] = sTitle;
+            List<string> lsNames = new List<string>();
+            foreach (string[] aPair in lAuthors) if (aPair[0] != "") lsNames.Add(surnameFirst(aPair[0]));
+            d["author"] = string.Join("; ", lsNames.ToArray());
+            d["source"] = sSource;
+            d["work"] = crossLibraryKey(sTitle, sOriginalAuthor);
+            d["publisher"] = plainPublisher(catalogValue(dRow, "publisher"));
+            d["first_published"] = catalogValue(dRow, "firstPublished");
+            d["wikipedia"] = catalogValue(dRow, "wikipediaUrl");
+            d["summary"] = catalogValue(dRow, "summary") != "" ? catalogValue(dRow, "summary") : catalogValue(dRow, "description");
+            switch (sSource)
+            {
+                case "Audible":
+                    d["format"] = "audio (commercial)";
+                    d["catalog_number"] = catalogValue(dRow, "asin");
+                    d["url"] = catalogValue(dRow, "url");
+                    d["narrator"] = surnameList(catalogLinks(dRow, "narrators"));
+                    d["language"] = catalogValue(dRow, "language");
+                    d["length"] = catalogValue(dRow, "lengthText");
+                    if (dRow.ContainsKey("ratingValue")) d["avg_rating"] = Convert.ToString(dRow["ratingValue"], CultureInfo.InvariantCulture);
+                    if (dRow.ContainsKey("ratingsCount")) d["ratings_count"] = Convert.ToString(dRow["ratingsCount"], CultureInfo.InvariantCulture);
+                    bool bFinished = dRow.ContainsKey("finished") && Convert.ToBoolean(dRow["finished"]);
+                    d["progress"] = bFinished ? "Finished" : catalogValue(dRow, "timeLeft");
+                    d["status"] = bFinished ? "read" : (catalogValue(dRow, "timeLeft") != "" ? "reading" : "want to read");
+                    setSeries(d, joinPairNames(catalogLinks(dRow, "series")));
+                    foreach (string sLadder in catalogStrings(dRow, "genreLadders"))
+                        foreach (string sPart in sLadder.Split(new string[] { ">", "/" }, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            if (!d.ContainsKey("genre") && sPart.Trim() != "") d["genre"] = sPart.Trim().ToLowerInvariant();
+                            lTags.Add(sPart.Trim());
+                        }
+                    d["files"] = companionFiles(catalogValue(dRow, "asin"));
+                    break;
+                case "Kindle":
+                    d["format"] = "eBook";
+                    d["catalog_number"] = catalogValue(dRow, "asin");
+                    d["url"] = catalogValue(dRow, "asin") == "" ? "" : "https://www.amazon.com/dp/" + catalogValue(dRow, "asin");
+                    if (dRow.ContainsKey("percentageRead"))
+                    {
+                        int iPercent = Convert.ToInt32(Convert.ToDouble(dRow["percentageRead"], CultureInfo.InvariantCulture));
+                        d["progress"] = iPercent + "%";
+                        d["status"] = iPercent >= 100 ? "read" : (iPercent > 0 ? "reading" : "want to read");
+                    }
+                    if (kindleFormatText(catalogValue(dRow, "resourceType")) != "") lTags.Add(kindleFormatText(catalogValue(dRow, "resourceType")));
+                    if (kindleOriginText(catalogValue(dRow, "originType")) != "") lNotes.Add("Origin: " + kindleOriginText(catalogValue(dRow, "originType")));
+                    if (catalogValue(dRow, "webReaderUrl") != "") lNotes.Add("Read online: " + catalogValue(dRow, "webReaderUrl"));
+                    break;
+                case "Goodreads":
+                    d["format"] = goodreadsFormat(grField(dRow, "format"));
+                    d["url"] = catalogValue(dRow, "grUrl");
+                    d["catalog_number"] = Regex.Match(d["url"], @"/show/(\d+)").Groups[1].Value;
+                    d["isbn"] = grField(dRow, "isbn13") != "" ? grField(dRow, "isbn13") : grField(dRow, "isbn");
+                    d["pages"] = grField(dRow, "num pages").Replace("pp", "").Trim();
+                    d["avg_rating"] = grField(dRow, "avg rating");
+                    if (dRow.ContainsKey("grMyRating") && Convert.ToInt32(dRow["grMyRating"]) > 0) d["rating"] = Convert.ToString(dRow["grMyRating"]);
+                    d["date_read"] = grField(dRow, "date read");
+                    d["date_added"] = grField(dRow, "date added");
+                    foreach (string sShelf in catalogStrings(dRow, "grShelves"))
+                    {
+                        string sLower = sShelf.Trim().ToLowerInvariant();
+                        if (sLower == "read") d["status"] = "read";
+                        else if (sLower == "currently-reading") d["status"] = "reading";
+                        else if (sLower == "to-read") d["status"] = "want to read";
+                        else if (sLower != "") lTags.Add(sShelf.Trim());
+                    }
+                    break;
+                case "Bookshare":
+                    d["format"] = bsField(dRow, "Format").IndexOf("BRF", StringComparison.OrdinalIgnoreCase) >= 0 ? "braille" : "text (Bookshare)";
+                    d["catalog_number"] = catalogValue(dRow, "bsId");
+                    d["url"] = catalogValue(dRow, "bsUrl");
+                    d["date_added"] = bsField(dRow, "Date");
+                    if (bsField(dRow, "Format") != "") lTags.Add(bsField(dRow, "Format"));
+                    if (bsField(dRow, "Status") != "") lNotes.Add("Bookshare status: " + bsField(dRow, "Status"));
+                    break;
+                case "BARD (NLS)":
+                    string sNlsId = dRow.ContainsKey("nlsId") ? Convert.ToString(dRow["nlsId"]) : "";
+                    d["catalog_number"] = sNlsId;
+                    d["format"] = sNlsId.StartsWith("BR", StringComparison.OrdinalIgnoreCase) ? "braille" : "audio (BARD)";
+                    d["url"] = catalogValue(dRow, "nlsUrl");
+                    d["narrator"] = nlsField(dRow, "Read by");
+                    d["length"] = nlsField(dRow, "Reading Time");
+                    d["date_added"] = nlsField(dRow, "Downloaded");
+                    setSeries(d, nlsField(dRow, "Series"));
+                    foreach (string sSubject in nlsField(dRow, "Subject").Split(new char[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (!d.ContainsKey("genre") && sSubject.Trim() != "") d["genre"] = sSubject.Trim().ToLowerInvariant();
+                        lTags.Add(sSubject.Trim());
+                    }
+                    if (editionText(dRow, "NLS") != "") lNotes.Add("Edition: " + editionText(dRow, "NLS"));
+                    if (nlsField(dRow, "Production") != "") lNotes.Add("Production: " + nlsField(dRow, "Production"));
+                    break;
+            }
+            writeCopy(d, lTags, lNotes);
+            return 1;
+        }
+        finally
+        {
+            Monitor.Exit(dRow);
+        }
+    }
+
+    static void writeCopy(Dictionary<string, string> d, List<string> lTags, List<string> lNotes)
+    {
+        string sPrime, sStatus;
+        List<string> lsSet, lsArgs;
+
+        sPrime = d["author"] + "|" + d["title"] + "|" + d["source"];
+        if (scalarSql("SELECT count(*) FROM books WHERE prime = @p", "@p", sPrime) == "0")
+        {
+            List<string> lsCols = new List<string>(), lsMarks = new List<string>();
+            lsArgs = new List<string>();
+            foreach (KeyValuePair<string, string> oField in d)
+            {
+                if (oField.Value == null || oField.Value == "") continue;
+                lsCols.Add("\"" + oField.Key + "\"");
+                lsMarks.Add("@" + oField.Key);
+                lsArgs.Add("@" + oField.Key);
+                lsArgs.Add(oField.Value);
+            }
+            runSqlWith("INSERT INTO books (" + string.Join(", ", lsCols.ToArray()) + ") VALUES (" + string.Join(", ", lsMarks.ToArray()) + ")", lsArgs.ToArray());
+        }
+        else
+        {
+            lsSet = new List<string>();
+            lsArgs = new List<string> { "@p", sPrime };
+            foreach (string sField in aOwnedFields)
+            {
+                if (!d.ContainsKey(sField) || d[sField] == "") continue;
+                lsSet.Add("\"" + sField + "\" = @" + sField);
+                lsArgs.Add("@" + sField); lsArgs.Add(d[sField]);
+            }
+            foreach (string sField in aFillFields)
+            {
+                if (!d.ContainsKey(sField) || d[sField] == "") continue;
+                lsSet.Add("\"" + sField + "\" = CASE WHEN coalesce(\"" + sField + "\",'') = '' THEN @" + sField + " ELSE \"" + sField + "\" END");
+                lsArgs.Add("@" + sField); lsArgs.Add(d[sField]);
+            }
+            if (d.ContainsKey("status") && d["status"] != "")
+            {
+                sStatus = scalarSql("SELECT coalesce(status,'') FROM books WHERE prime = @p", "@p", sPrime);
+                if (statusRank(d["status"]) > statusRank(sStatus) && (sStatus == "" || statusRank(sStatus) > 0)) { lsSet.Add("status = @status"); lsArgs.Add("@status"); lsArgs.Add(d["status"]); }
+            }
+            if (lsSet.Count > 0) runSqlWith("UPDATE books SET " + string.Join(", ", lsSet.ToArray()) + " WHERE prime = @p", lsArgs.ToArray());
+        }
+        if (lTags.Count > 0 || lNotes.Count > 0)
+        {
+            string sTags = scalarSql("SELECT coalesce(tags,'') FROM books WHERE prime = @p", "@p", sPrime);
+            string sNotes = scalarSql("SELECT coalesce(notes,'') FROM books WHERE prime = @p", "@p", sPrime);
+            string sTagsNew = addedLines(sTags, lTags, "\r\n"), sNotesNew = addedLines(sNotes, lNotes, "\r\n");
+            if (sTagsNew != sTags || sNotesNew != sNotes) runSqlWith("UPDATE books SET tags = @t, notes = @n WHERE prime = @p", new string[] { "@t", sTagsNew, "@n", sNotesNew, "@p", sPrime });
+        }
+    }
+
+    // Each author found, in BookTrail's author pick list, with the biography gathered and its link. Only blanks are
+    // filled, so a description a reader wrote stays.
+    static void saveAuthors()
+    {
+        HashSet<string> setNames = new HashSet<string>(dAuthorWikiBio.Keys);
+        setNames.UnionWith(dAuthorOlBio.Keys);
+        setNames.UnionWith(dAuthorWikiUrl.Keys);
+        foreach (string sName in setNames)
+        {
+            if (sName == "") continue;
+            string sVal = surnameFirst(sName);
+            string sBio = dAuthorWikiBio.ContainsKey(sName) && dAuthorWikiBio[sName] != "" ? dAuthorWikiBio[sName] : (dAuthorOlBio.ContainsKey(sName) ? dAuthorOlBio[sName] : "");
+            string sUrl = dAuthorWikiUrl.ContainsKey(sName) ? dAuthorWikiUrl[sName] : "";
+            runSqlWith("INSERT OR IGNORE INTO lookups (tbl, fld, val, src) VALUES ('books', 'author', @v, 'bookFido')", new string[] { "@v", sVal });
+            runSqlWith("UPDATE lookups SET descrip = CASE WHEN coalesce(descrip,'') = '' AND @d <> '' THEN @d ELSE descrip END, url = CASE WHEN coalesce(url,'') = '' AND @u <> '' THEN @u ELSE url END WHERE tbl = 'books' AND fld = 'author' AND val = @v AND src = 'bookFido'",
+                new string[] { "@d", sBio, "@u", sUrl, "@v", sVal });
+        }
+    }
+
+    static int statusRank(string sStatus)
+    {
+        switch ((sStatus ?? "").Trim().ToLowerInvariant())
+        {
+            case "want to read": return 1;
+            case "reading": return 2;
+            case "read": return 3;
+        }
+        return 0;
+    }
+
+    static string addedLines(string sHave, List<string> lNew, string sBreak)
+    {
+        List<string> lLines = new List<string>(Regex.Split(sHave ?? "", @"\r?\n"));
+        lLines.RemoveAll(s => s.Trim() == "");
+        HashSet<string> setHave = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string s in lLines) setHave.Add(s.Trim());
+        foreach (string s in lNew) { if (s != null && s.Trim() != "" && setHave.Add(s.Trim())) lLines.Add(s.Trim()); }
+        return string.Join(sBreak, lLines.ToArray());
+    }
+
+    // "Sherlock Holmes, Book 3" into series and volume.
+    static void setSeries(Dictionary<string, string> d, string sSeries)
+    {
+        if (sSeries == null || sSeries.Trim() == "") return;
+        string sFirst = sSeries.Split(';')[0].Trim();
+        Match oMatch = Regex.Match(sFirst, @"^(.*?)[,:]?\s*(?:Book|Bk\.?|Volume|Vol\.?|Part|No\.?|#)\s*([\d.]+)\s*$", RegexOptions.IgnoreCase);
+        if (oMatch.Success) { d["series"] = oMatch.Groups[1].Value.Trim(); d["volume"] = oMatch.Groups[2].Value; }
+        else d["series"] = sFirst;
+    }
+
+    static string goodreadsFormat(string sFormat)
+    {
+        string sLower = (sFormat ?? "").ToLowerInvariant();
+        if (sLower.Contains("audio")) return "audio (commercial)";
+        if (sLower.Contains("kindle") || sLower.Contains("ebook")) return "eBook";
+        if (sLower.Contains("hardcover") || sLower.Contains("paperback") || sLower.Contains("mass market")) return "print";
+        if (sLower.Contains("large print")) return "large print";
+        return (sFormat ?? "").Trim();
+    }
+
+    // The companion PDF saved for an Audible title, and its .htm, one path to a line.
+    static string companionFiles(string sAsin)
+    {
+        if (sAsin == "" || !dPdfNames.ContainsKey(sAsin) || dPdfNames[sAsin] == "" || sDownloadDirShared == "") return "";
+        string sPdf = Path.Combine(sDownloadDirShared, dPdfNames[sAsin]);
+        string sHtm = Path.ChangeExtension(sPdf, ".htm");
+        return File.Exists(sHtm) ? sPdf + "\r\n" + sHtm : sPdf;
+    }
+
+    static string surnameList(List<string[]> lPairs)
+    {
+        List<string> lsNames = new List<string>();
+        foreach (string[] aPair in lPairs) if (aPair[0] != "") lsNames.Add(surnameFirst(aPair[0]));
+        return string.Join("; ", lsNames.ToArray());
+    }
+
+    static readonly HashSet<string> setNameSuffixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Jr.", "Jr", "Sr.", "Sr", "II", "III", "IV", "PhD", "Ph.D.", "MD", "M.D." };
+    static readonly HashSet<string> setNameParticles = new HashSet<string> { "de", "da", "del", "della", "di", "du", "la", "le", "van", "von", "der", "den", "ter", "bin", "al", "el", "dos", "das" };
+    static readonly Regex reNotAPerson = new Regex(@"\b(Inc|Ltd|LLC|Press|Publishing|Publications|Society|University|Institute|Staff|Editors|Group|Productions|Media|Company|Foundation|Council|Association|Library|Museum|Various|Anonymous)\b", RegexOptions.IgnoreCase);
+
+    // "Arthur Conan Doyle" as BookTrail writes it, "Doyle, Arthur Conan": the form a reader of authors sorts by.
+    // A name with a comma already, a single word, or an organization is left as it is.
+    static string surnameFirst(string sName)
+    {
+        string sSuffix = "";
+        sName = (sName ?? "").Trim();
+        if (sName == "" || sName.Contains(",") || reNotAPerson.IsMatch(sName)) return sName;
+        List<string> lsWords = new List<string>(sName.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        if (lsWords.Count > 2 && setNameSuffixes.Contains(lsWords[lsWords.Count - 1])) { sSuffix = lsWords[lsWords.Count - 1]; lsWords.RemoveAt(lsWords.Count - 1); }
+        if (lsWords.Count < 2) return sName;
+        int iSurname = lsWords.Count - 1;
+        while (iSurname > 1 && setNameParticles.Contains(lsWords[iSurname - 1])) iSurname = iSurname - 1;
+        string sSurname = string.Join(" ", lsWords.GetRange(iSurname, lsWords.Count - iSurname).ToArray());
+        string sGiven = string.Join(" ", lsWords.GetRange(0, iSurname).ToArray());
+        return sSurname + ", " + sGiven + (sSuffix != "" ? ", " + sSuffix : "");
+    }
+
+    // The reverse, for reading the author cache back: "Doyle, Arthur Conan" to "Arthur Conan Doyle".
+    static string givenFirst(string sName)
+    {
+        string[] aParts = (sName ?? "").Split(new string[] { ", " }, StringSplitOptions.None);
+        if (aParts.Length < 2) return sName ?? "";
+        return aParts[1] + " " + aParts[0] + (aParts.Length > 2 ? " " + aParts[2] : "");
     }
 
     static void runSql(string sSql)
@@ -5182,56 +5666,6 @@ class bookFido
     // Everything already captured comes into memory at start: books by their
     // cross-library key, and authors straight into the biography stores and
     // checked sets, so neither lane asks the web about them again.
-    static void loadMetadataCache()
-    {
-        string sName;
-        Dictionary<string, string> dCached;
-
-        using (SqliteCommand commandBooks = connectionDb.CreateCommand())
-        {
-            commandBooks.CommandText = "SELECT \"key\", \"first_published\", \"url\", \"wikipedia_title\", \"description\" FROM books WHERE \"key\" IS NOT NULL AND \"key\" <> ''";
-            using (SqliteDataReader readerBooks = commandBooks.ExecuteReader())
-            {
-                while (readerBooks.Read())
-                {
-                    dCached = new Dictionary<string, string>();
-                    if (!readerBooks.IsDBNull(1)) dCached["firstPublished"] = readerBooks.GetString(1);
-                    if (!readerBooks.IsDBNull(2)) dCached["wikipediaUrl"] = readerBooks.GetString(2);
-                    if (!readerBooks.IsDBNull(3)) dCached["wikipediaTitle"] = readerBooks.GetString(3);
-                    if (!readerBooks.IsDBNull(4)) dCached["description"] = readerBooks.GetString(4);
-                    dCachedBooks[readerBooks.GetString(0)] = dCached;
-                }
-            }
-        }
-        using (SqliteCommand commandPublished = connectionDb.CreateCommand())
-        {
-            commandPublished.CommandText = "SELECT b.\"key\", p.\"name\" FROM maps m JOIN books b ON b.unq = m.unq1 JOIN publishers p ON p.unq = m.unq2 WHERE m.kind = 'published' AND m.tbl1 = 'books' AND m.tbl2 = 'publishers' AND b.\"key\" IS NOT NULL";
-            using (SqliteDataReader readerPublished = commandPublished.ExecuteReader())
-            {
-                while (readerPublished.Read())
-                {
-                    if (!readerPublished.IsDBNull(1) && dCachedBooks.ContainsKey(readerPublished.GetString(0))) dCachedBooks[readerPublished.GetString(0)]["publisher"] = readerPublished.GetString(1);
-                }
-            }
-        }
-        using (SqliteCommand commandAuthors = connectionDb.CreateCommand())
-        {
-            commandAuthors.CommandText = "SELECT \"name\", \"url\", \"wiki_bio\", \"ol_bio\" FROM authors WHERE \"name\" IS NOT NULL AND \"name\" <> ''";
-            using (SqliteDataReader readerAuthors = commandAuthors.ExecuteReader())
-            {
-                while (readerAuthors.Read())
-                {
-                    sName = readerAuthors.GetString(0);
-                    if (!readerAuthors.IsDBNull(1) && readerAuthors.GetString(1) != "") dAuthorWikiUrl[sName] = readerAuthors.GetString(1);
-                    if (!readerAuthors.IsDBNull(2) && readerAuthors.GetString(2) != "") dAuthorWikiBio[sName] = readerAuthors.GetString(2);
-                    if (!readerAuthors.IsDBNull(3) && readerAuthors.GetString(3) != "") dAuthorOlBio[sName] = readerAuthors.GetString(3);
-                    setAuthorsCheckedWiki.Add(sName);
-                    setAuthorsCheckedOl.Add(sName);
-                }
-            }
-        }
-    }
-
     // A book already in the database means both lookup lanes ran for it on
     // an earlier run: its details are copied in and its checked markers are
     // set, so the row is never queued.
@@ -5249,40 +5683,6 @@ class bookFido
         }
     }
 
-    // After the lanes drain and twins resolve, everything gathered is
-    // written back inside one transaction: books upserted by key with
-    // blanks filled, authors and publishers upserted by name, and the maps
-    // rows that tie books to their authors and publishers by unq strings.
-    static void saveDatabase()
-    {
-        int iBookCount;
-
-        if (connectionDb == null) return;
-        try
-        {
-            using (SqliteTransaction transactionSave = connectionDb.BeginTransaction())
-            {
-                iBookCount = 0;
-                iBookCount = iBookCount + saveBookList(lCatalog);
-                iBookCount = iBookCount + saveBookList(lKindleCatalog);
-                iBookCount = iBookCount + saveBookList(lGoodreadsCatalog);
-                iBookCount = iBookCount + saveBookList(lBookshareCatalog);
-                iBookCount = iBookCount + saveBookList(lNlsCatalog);
-                saveAuthors();
-                transactionSave.Commit();
-                log("The database was updated: " + iBookCount + " book records considered across the five libraries");
-                bDbUpdated = true;
-            }
-            connectionDb.Close();
-            connectionDb = null;
-        }
-        catch (Exception oException)
-        {
-            sDbStatus = oException.Message;
-            log("The database could not be updated, so this run's gathering stays in the state snapshot only: " + oException.Message);
-        }
-    }
-
     // A publisher's name without the source label the documents carry, so
     // one publisher is one record however its name reached the catalog.
     static string plainPublisher(string sName)
@@ -5294,63 +5694,6 @@ class bookFido
         iAt = sPlain.LastIndexOf(" (", StringComparison.Ordinal);
         if (iAt > 0 && sPlain.EndsWith(")")) sPlain = sPlain.Substring(0, iAt).Trim();
         return sPlain;
-    }
-
-    static int saveBookList(List<Dictionary<string, object>> lRows)
-    {
-        int iCount;
-        string sAuthor, sBookUnq, sKey, sPublisher, sTitle;
-        List<string[]> lPairs;
-
-        iCount = 0;
-        foreach (Dictionary<string, object> dRow in lRows)
-        {
-            Monitor.Enter(dRow);
-            sTitle = catalogValue(dRow, "title");
-            lPairs = catalogLinks(dRow, "authors");
-            sAuthor = lPairs.Count > 0 ? lPairs[0][0] : "";
-            sKey = crossLibraryKey(sTitle, sAuthor);
-            sPublisher = plainPublisher(catalogValue(dRow, "publisher"));
-            if (sTitle == "") { Monitor.Exit(dRow); continue; }
-            runSqlWith("INSERT OR IGNORE INTO books(\"url\", \"title\", \"author\", \"key\", \"first_published\", \"wikipedia_title\", \"description\") VALUES(@u, @t, @a, @k, @f, @w, @d)",
-                new string[] { "@u", catalogValue(dRow, "wikipediaUrl"), "@t", sTitle, "@a", sAuthor, "@k", sKey, "@f", catalogValue(dRow, "firstPublished"), "@w", catalogValue(dRow, "wikipediaTitle"), "@d", catalogValue(dRow, "description") });
-            // EACH FIELD FILLED ONLY IF IT IS BLANK (8 October 2026, from an audit by another AI):
-            // when any one field qualified, all four incoming values were assigned, blanks
-            // included, so a year arriving alone erased the address, title and description.
-            runSqlWith("UPDATE books SET \"url\" = CASE WHEN coalesce(\"url\",'') = '' AND @u <> '' THEN @u ELSE \"url\" END, \"first_published\" = CASE WHEN coalesce(\"first_published\",'') = '' AND @f <> '' THEN @f ELSE \"first_published\" END, \"wikipedia_title\" = CASE WHEN coalesce(\"wikipedia_title\",'') = '' AND @w <> '' THEN @w ELSE \"wikipedia_title\" END, \"description\" = CASE WHEN coalesce(\"description\",'') = '' AND @d <> '' THEN @d ELSE \"description\" END, edited = CURRENT_TIMESTAMP WHERE \"key\" = @k AND ((coalesce(\"url\",'') = '' AND @u <> '') OR (coalesce(\"first_published\",'') = '' AND @f <> '') OR (coalesce(\"wikipedia_title\",'') = '' AND @w <> '') OR (coalesce(\"description\",'') = '' AND @d <> ''))",
-                new string[] { "@u", catalogValue(dRow, "wikipediaUrl"), "@f", catalogValue(dRow, "firstPublished"), "@w", catalogValue(dRow, "wikipediaTitle"), "@d", catalogValue(dRow, "description"), "@k", sKey });
-            sBookUnq = scalarSql("SELECT unq FROM books WHERE \"key\" = @k", "@k", sKey);
-            foreach (string[] aPair in lPairs)
-            {
-                if (aPair[0] == "") continue;
-                runSqlWith("INSERT OR IGNORE INTO authors(\"name\") VALUES(@n)", new string[] { "@n", aPair[0] });
-                runSqlWith("INSERT OR IGNORE INTO maps(tbl1, unq1, kind, tbl2, unq2) VALUES('books', @b, 'wrote', 'authors', @n)", new string[] { "@b", sBookUnq, "@n", aPair[0] });
-            }
-            if (sPublisher != "")
-            {
-                runSqlWith("INSERT OR IGNORE INTO publishers(\"name\") VALUES(@n)", new string[] { "@n", sPublisher });
-                runSqlWith("INSERT OR IGNORE INTO maps(tbl1, unq1, kind, tbl2, unq2) VALUES('books', @b, 'published', 'publishers', @n)", new string[] { "@b", sBookUnq, "@n", sPublisher });
-            }
-            iCount = iCount + 1;
-            Monitor.Exit(dRow);
-        }
-        return iCount;
-    }
-
-    static void saveAuthors()
-    {
-        HashSet<string> setNames;
-
-        setNames = new HashSet<string>(dAuthorWikiBio.Keys);
-        setNames.UnionWith(dAuthorOlBio.Keys);
-        setNames.UnionWith(dAuthorWikiUrl.Keys);
-        foreach (string sName in setNames)
-        {
-            if (sName == "") continue;
-            runSqlWith("INSERT OR IGNORE INTO authors(\"name\") VALUES(@n)", new string[] { "@n", sName });
-            runSqlWith("UPDATE authors SET \"url\" = @u, \"wiki_bio\" = @w, \"ol_bio\" = @o, edited = CURRENT_TIMESTAMP WHERE \"name\" = @n AND ((coalesce(\"url\",'') = '' AND @u <> '') OR (coalesce(\"wiki_bio\",'') = '' AND @w <> '') OR (coalesce(\"ol_bio\",'') = '' AND @o <> ''))",
-                new string[] { "@u", dAuthorWikiUrl.ContainsKey(sName) ? dAuthorWikiUrl[sName] : "", "@w", dAuthorWikiBio.ContainsKey(sName) ? dAuthorWikiBio[sName] : "", "@o", dAuthorOlBio.ContainsKey(sName) ? dAuthorOlBio[sName] : "", "@n", sName });
-        }
     }
 
     static void runSqlWith(string sSql, string[] aPairs)

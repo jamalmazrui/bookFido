@@ -6,6 +6,13 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 11 October 2026 -- your books in DbDo's BookTrail, and better companion pages
+
+- **BookTrail instead of bookFido.db.** When DbDo is installed for you (%LOCALAPPDATA%\\DbDo exists), bookFido writes your Audible, Kindle, Goodreads, Bookshare and BARD libraries into DbDo's BookTrail; without DbDo, no database is written. If DbDo has never opened BookTrail, it is made from DbDo's installed template. Each copy of each book is one row, known by author, title and source, so an Audible copy and a BARD copy keep their own narrator, format and catalog number. New fields hold the publisher, first publication, language, length, pages, ISBN, progress, average rating and its count, the Wikipedia article, the companion files, and the work every copy shares. bookFido refreshes what the source says, fills only blanks in what you may have written, moves a status only forward, and only adds tags and notes. Authors join BookTrail's author list with their biographies. An older BookTrail is brought up to date in one transaction, keeping every row, any column you added, and every link. BookTrail is also where a later run finds what was already gathered.
+- **Companion .htm files read as their PDF is laid out.** Pages are read in reading order, so two columns read down each column; a short bold heading in body-sized type is a heading; and a tagged PDF's own headings, lists, tables and figure descriptions are used when its tags reach most of the text (PdfStructure.cs, after HomerScribe's way of reading a PDF). Any failure falls back to the reading before. Each new .htm carries a mark, and one bookFido made earlier is made again once, so the files already there improve; a file anyone else made is left alone.
+- **The first build stopped once**, on a PdfPig member HomerScribe uses but version 0.1.14 does not make public (Structure.TokenScanner); PdfStructure.cs now follows references with the public Structure.GetObject. Everything else compiled the first time.
+- **The installer was right.** It installs to C:\\Program Files\\bookFido in administrative mode, as its logs show; no UAC prompt appears when the setup program is started from a window that already runs as administrator.
+
 ## 11 October 2026 -- the start-up fault, closed from both sides
 
 - **Nothing in bookFido's start-up needs an embedded library now.** 1.1.33 still stopped with the same TypeInitializationException, and its log held no line from the resolver at all. The field that caused it, connectionDb, of SqliteConnection's type, lost its "= null": a static field is null without it, and without it bookFido's static set-up no longer touches SQLite, so it cannot fail there whatever the resolver does.

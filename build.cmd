@@ -73,7 +73,8 @@ rem Help box offers the update), Log, Paths, Say and Util; Log needs Paths and
 rem Say; Mdi needs KeyMap. Each is compiled from C:\HomerDev\exec\CSharp.
 set "homerModules=Elevate Inix Lbc Log Paths Say Util Web"
 rem The app's own sources beside bookFido.cs, if any, space separated.
-set "appSources="
+rem PdfStructure.cs reads a tagged PDF's own structure for the companion .htm files (11 October 2026).
+set "appSources=PdfStructure.cs"
 rem Files embedded in the program as resources, space separated: a sound, a
 rem native DLL the program extracts itself.
 set "csResources="

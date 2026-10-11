@@ -20,7 +20,7 @@ How bookFido is built, released and laid out, with the facts that cost the most 
 
 `version.txt` holds the version and lives only on this machine; never ship it in a zip, which once reset the number on every unzip. The build writes `Version.cs` from it, and the installer reads it directly.
 
-The program's own data is NOT in the project: `bookFido.db`, `bookFido.json` and diagnostic pages live in `%LOCALAPPDATA%\bookFido\data` (Homer's `Paths.data()`), and each run's log in `%LOCALAPPDATA%\bookFido\logs`. The first run of the kit version moves the database and the state file there from beside the program, the project folder, or `%LOCALAPPDATA%\bookFido`, taking the newest copy.
+The program's own data is NOT in the project: `bookFido.json` (and, with DbDo, the user's BookTrail in `%LOCALAPPDATA%\\DbDo\\data\\BookTrail`) and diagnostic pages live in `%LOCALAPPDATA%\bookFido\data` (Homer's `Paths.data()`), and each run's log in `%LOCALAPPDATA%\bookFido\logs`. The first run of the kit version moves the database and the state file there from beside the program, the project folder, or `%LOCALAPPDATA%\bookFido`, taking the newest copy.
 
 ## The four steps
 

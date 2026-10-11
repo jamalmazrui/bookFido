@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
@@ -8,6 +8,9 @@
   <title>bookFido</title>
   <style>
     html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
       color: #1a1a1a;
       background-color: #fdfdfd;
     }
@@ -26,16 +29,13 @@
     @media (max-width: 600px) {
       body {
         font-size: 0.9em;
-        padding: 12px;
+        padding: 1em;
       }
       h1 {
         font-size: 1.8em;
       }
     }
     @media print {
-      html {
-        background-color: white;
-      }
       body {
         background-color: transparent;
         color: black;
@@ -85,10 +85,9 @@
       color: #606060;
     }
     code {
-      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
       font-size: 85%;
       margin: 0;
-      hyphens: manual;
     }
     pre {
       margin: 1em 0;
@@ -153,17 +152,17 @@
     div.columns{display: flex; gap: min(4vw, 1.5em);}
     div.column{flex: auto; overflow-x: auto;}
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
-       override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
+    ul.task-list{list-style: none;}
     ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
       width: 0.8em;
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
   </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
 </head>
 <body>
 <header id="title-block-header">
@@ -213,20 +212,27 @@ publisher, subject, and rating, ending with About the Authors.</li>
 <li><strong>bookFido.xlsx</strong> — one workbook with a sortable sheet
 for each library.</li>
 </ul>
-<p>And in its data folder, <code>%LOCALAPPDATA%\bookFido\data</code>,
-<strong>bookFido.db</strong>, a SQLite database in the standard <a
-href="https://github.com/jamalmazrui/DbDo">DbDo</a> schema, holding your
-books, authors, and publishers as related records you can browse and
-query in DbDo itself.</p>
+<p>And, when <a href="https://github.com/jamalmazrui/DbDo">DbDo</a> is
+installed for you, <strong>your books in DbDo’s BookTrail</strong>, the
+book list it ships with. Each copy of each book is one row: a book you
+have on Audible and from BARD is two rows, each with its own format,
+source, narrator and catalog number, and sorting by author keeps them
+together. Every row carries what bookFido found: publisher, first
+publication, language, length, pages, ISBN, your progress, ratings, the
+Wikipedia article, and the companion files it saved. Each author joins
+BookTrail’s author list with a biography. Your own entries are safe:
+bookFido fills only blank fields, moves a status only forward, from want
+to read to reading to read, and only adds tags and notes. Without DbDo,
+no database is written.</p>
 <h2 id="why-it-is-pleasant-to-use">Why it is pleasant to use</h2>
 <ul>
 <li><strong>It talks.</strong> Timed message boxes announce each page
 found, each book cataloged, and the estimated minutes remaining, each
 one focused so your screen reader speaks it in its own voice.</li>
 <li><strong>It remembers.</strong> Everything gathered is kept in
-bookFido.db and a state snapshot, so a second run never looks up what it
-already knows. A first full catalog can take hours; the runs after it
-take minutes.</li>
+BookTrail, when DbDo is installed, and in a state snapshot, so a second
+run never looks up what it already knows. A first full catalog can take
+hours; the runs after it take minutes.</li>
 <li><strong>It is polite to the web.</strong> One request per second per
 service, rate-limit responses honored, and a circuit breaker that steps
 back from a service that has closed its door for the day.</li>
@@ -309,12 +315,14 @@ files</h2>
 <ul>
 <li><strong>Your catalogs</strong>: in your Downloads folder, as listed
 under What you get.</li>
-<li><strong>What it has learned</strong>: <code>bookFido.db</code> and
-the state snapshot <code>bookFido.json</code>, in
-<code>%LOCALAPPDATA%\bookFido\data</code>. Versions before the move to
-the Homer Development Kit kept them beside the program; the first run of
-this version moves them there, taking the newest copy when there is more
-than one.</li>
+<li><strong>What it has learned</strong>: the state snapshot
+<code>bookFido.json</code>, in
+<code>%LOCALAPPDATA%\bookFido\data</code>, and, with DbDo, BookTrail, in
+<code>%LOCALAPPDATA%\DbDo\data\BookTrail</code>. A
+<code>bookFido.db</code> from an earlier version is no longer used, and
+can be deleted. Versions before the move to the Homer Development Kit
+kept them beside the program; the first run of this version moves them
+there, taking the newest copy when there is more than one.</li>
 <li><strong>Its browser profile</strong>, which holds your sign-ins:
 <code>%LOCALAPPDATA%\bookFido\EdgeProfile</code>.</li>
 <li><strong>Logs</strong>: one per run, in

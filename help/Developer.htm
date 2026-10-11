@@ -199,8 +199,9 @@ machine; never ship it in a zip, which once reset the number on every
 unzip. The build writes <code>Version.cs</code> from it, and the
 installer reads it directly.</p>
 <p>The program’s own data is NOT in the project:
-<code>bookFido.db</code>, <code>bookFido.json</code> and diagnostic
-pages live in <code>%LOCALAPPDATA%\bookFido\data</code> (Homer’s
+<code>bookFido.json</code> (and, with DbDo, the user’s BookTrail in
+<code>%LOCALAPPDATA%\\DbDo\\data\\BookTrail</code>) and diagnostic pages
+live in <code>%LOCALAPPDATA%\bookFido\data</code> (Homer’s
 <code>Paths.data()</code>), and each run’s log in
 <code>%LOCALAPPDATA%\bookFido\logs</code>. The first run of the kit
 version moves the database and the state file there from beside the

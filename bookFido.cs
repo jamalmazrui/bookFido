@@ -154,7 +154,6 @@ class bookFido
     static string sConsolidatedHtmPath = "";
     static bool bDbUpdated = false;
     static string sDbStatus = "";
-    static Dictionary<string, Assembly> dLoadedAssemblies = new Dictionary<string, Assembly>();
     static Dictionary<string, Dictionary<string, string>> dCachedBooks = new Dictionary<string, Dictionary<string, string>>();
     static SqliteConnection connectionDb = null;
     static volatile bool bStopLanes = false;
@@ -247,7 +246,7 @@ class bookFido
             reportFatal("an error in a window", evArgs.Exception);
         };
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        AppDomain.CurrentDomain.AssemblyResolve += resolveEmbeddedAssembly;
+        AppDomain.CurrentDomain.AssemblyResolve += EmbeddedAssemblies.resolve;
         // ONE SESSION LOG PER RUN, from Homer's Log: %LOCALAPPDATA%\bookFido\logs\
         // bookFido-yyyyMMdd-HHmmss.log, the environment already in its header.
         // A run that is cancelled no longer empties the log of the run before,
@@ -3404,55 +3403,6 @@ class bookFido
     // state is set on one copy would look uninitialized to code holding the
     // other, which is exactly how a database engine registered by this
     // program can appear unregistered to the library that uses it.
-    static Assembly resolveEmbeddedAssembly(object oSender, ResolveEventArgs oArgs)
-    {
-        byte[] aBytes;
-        int iJust, iRead;
-        string sDiskPath, sResource, sSimpleName;
-        Assembly assemblyLoaded;
-
-        try
-        {
-            sSimpleName = new AssemblyName(oArgs.Name).Name;
-            lock (dLoadedAssemblies)
-            {
-                if (dLoadedAssemblies.ContainsKey(sSimpleName)) return dLoadedAssemblies[sSimpleName];
-                // A copy beside the program takes precedence over the bytes:
-                // loading from that path returns the very instance the
-                // runtime already holds for it, whereas loading the bytes
-                // would mint a second copy with its own static fields.  This
-                // is what a request for a slightly different version number
-                // must not be allowed to do to a library that remembers
-                // which database engine it was given.
-                sDiskPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, sSimpleName + ".dll");
-                if (File.Exists(sDiskPath))
-                {
-                    assemblyLoaded = Assembly.LoadFrom(sDiskPath);
-                    dLoadedAssemblies[sSimpleName] = assemblyLoaded;
-                    log("Resolved assembly from beside the program: " + sDiskPath);
-                    return assemblyLoaded;
-                }
-                sResource = sSimpleName + ".dll";
-                using (Stream streamResource = Assembly.GetExecutingAssembly().GetManifestResourceStream(sResource))
-                {
-                    if (streamResource == null) { log("No embedded resource found for assembly: " + sResource); return null; }
-                    aBytes = new byte[streamResource.Length];
-                    iRead = 0;
-                    while (iRead < aBytes.Length)
-                    {
-                        iJust = streamResource.Read(aBytes, iRead, aBytes.Length - iRead);
-                        if (iJust <= 0) break;
-                        iRead = iRead + iJust;
-                    }
-                    assemblyLoaded = Assembly.Load(aBytes);
-                    dLoadedAssemblies[sSimpleName] = assemblyLoaded;
-                    log("Loaded embedded assembly: " + sResource);
-                    return assemblyLoaded;
-                }
-            }
-        }
-        catch (Exception) { return null; }
-    }
 
     // Ensures a same-root-name .htm sibling exists for a companion PDF, so
     // screen reader users can read the content in a browser instead of a PDF
@@ -6325,4 +6275,70 @@ class bookFido
         return GetForegroundWindow() == hWindow;
     }
 
+}
+
+
+// EmbeddedAssemblies -- loads the libraries embedded in bookFido.exe when .NET asks for them.
+//
+// ITS OWN CLASS, WITH ITS OWN STATE (11 October 2026). This was a method of bookFido, keeping what it had loaded in a
+// static field of bookFido. Every run of 1.1.29 and 1.1.31 that day stopped at once, with
+// "TypeInitializationException: The type initializer for 'bookFido' threw an exception" over "Could not load file or
+// assembly 'Microsoft.Data.Sqlite'". bookFido's static set-up includes a field of SqliteConnection's type, so compiling
+// it asked for Microsoft.Data.Sqlite -- before any of bookFido's static fields existed, the resolver's dictionary
+// among them. The resolver locked on that empty field, which threw; its own catch returned nothing; and .NET reported
+// the library as missing. Here the resolver depends on nothing of bookFido's, so it works while bookFido is still
+// being set up, and it logs through Homer's Log, which is set up first.
+static class EmbeddedAssemblies
+{
+    static Dictionary<string, Assembly> dLoaded = new Dictionary<string, Assembly>();
+
+    public static Assembly resolve(object oSender, ResolveEventArgs oArgs)
+    {
+        byte[] aBytes;
+        int iJust, iRead;
+        string sDiskPath, sResource, sSimpleName;
+        Assembly assemblyLoaded;
+
+        try
+        {
+            sSimpleName = new AssemblyName(oArgs.Name).Name;
+            lock (dLoaded)
+            {
+                if (dLoaded.ContainsKey(sSimpleName)) return dLoaded[sSimpleName];
+                // A copy beside the program takes precedence over the bytes:
+                // loading from that path returns the very instance the
+                // runtime already holds for it, whereas loading the bytes
+                // would mint a second copy with its own static fields.  This
+                // is what a request for a slightly different version number
+                // must not be allowed to do to a library that remembers
+                // which database engine it was given.
+                sDiskPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, sSimpleName + ".dll");
+                if (File.Exists(sDiskPath))
+                {
+                    assemblyLoaded = Assembly.LoadFrom(sDiskPath);
+                    dLoaded[sSimpleName] = assemblyLoaded;
+                    Homer.Log.info("Resolved assembly from beside the program: " + sDiskPath);
+                    return assemblyLoaded;
+                }
+                sResource = sSimpleName + ".dll";
+                using (Stream streamResource = Assembly.GetExecutingAssembly().GetManifestResourceStream(sResource))
+                {
+                    if (streamResource == null) { Homer.Log.info("No embedded resource found for assembly: " + sResource); return null; }
+                    aBytes = new byte[streamResource.Length];
+                    iRead = 0;
+                    while (iRead < aBytes.Length)
+                    {
+                        iJust = streamResource.Read(aBytes, iRead, aBytes.Length - iRead);
+                        if (iJust <= 0) break;
+                        iRead = iRead + iJust;
+                    }
+                    assemblyLoaded = Assembly.Load(aBytes);
+                    dLoaded[sSimpleName] = assemblyLoaded;
+                    Homer.Log.info("Loaded embedded assembly: " + sResource);
+                    return assemblyLoaded;
+                }
+            }
+        }
+        catch (Exception) { return null; }
+    }
 }

@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 11 October 2026 -- bookFido starts again
+
+- **The cause, named by the new error handler.** Every run stopped at once with "TypeInitializationException: The type initializer for 'bookFido' threw an exception", over "Could not load file or assembly 'Microsoft.Data.Sqlite'". bookFido embeds its libraries in its program file, and a resolver loads them when .NET asks. But the resolver was part of bookFido and kept what it had loaded in one of bookFido's static fields. bookFido's own static set-up includes a field of SqliteConnection's type, so compiling that set-up asked for Microsoft.Data.Sqlite before any static field existed, the resolver's among them: the resolver locked on an empty field, which threw, its catch returned nothing, and .NET reported the library missing.
+- **The fix.** The resolver is now a class of its own, EmbeddedAssemblies, with its own state, logging through Homer's Log; it depends on nothing of bookFido's, so it works while bookFido is still being set up. No other Homer app uses an assembly resolver, so none shares the fault.
+
 ## 11 October 2026 -- from an audit and a report
 
 - **No run ends unseen.** Every run of 1.1.29 and 1.1.31 on 11 October stopped right after the log's header, with no error, no message and no "session end", so neither a crash nor a hang could be told apart. An unhandled-error handler is now set first in Main, for any thread, writing the full error to the session log and showing it in a message box; start-up writes a checkpoint at each step, so the last one names where a stopped run stopped; and each log line reaches the file before the console.

@@ -169,6 +169,26 @@
 <p class="author">Jamal Mazrui</p>
 </header>
 <h1 id="bookfido-history">bookFido History</h1>
+<h2 id="october-2026-bookfido-starts-again">11 October 2026 – bookFido
+starts again</h2>
+<ul>
+<li><strong>The cause, named by the new error handler.</strong> Every
+run stopped at once with “TypeInitializationException: The type
+initializer for ‘bookFido’ threw an exception”, over “Could not load
+file or assembly ‘Microsoft.Data.Sqlite’”. bookFido embeds its libraries
+in its program file, and a resolver loads them when .NET asks. But the
+resolver was part of bookFido and kept what it had loaded in one of
+bookFido’s static fields. bookFido’s own static set-up includes a field
+of SqliteConnection’s type, so compiling that set-up asked for
+Microsoft.Data.Sqlite before any static field existed, the resolver’s
+among them: the resolver locked on an empty field, which threw, its
+catch returned nothing, and .NET reported the library missing.</li>
+<li><strong>The fix.</strong> The resolver is now a class of its own,
+EmbeddedAssemblies, with its own state, logging through Homer’s Log; it
+depends on nothing of bookFido’s, so it works while bookFido is still
+being set up. No other Homer app uses an assembly resolver, so none
+shares the fault.</li>
+</ul>
 <h2 id="october-2026-from-an-audit-and-a-report">11 October 2026 – from
 an audit and a report</h2>
 <ul>

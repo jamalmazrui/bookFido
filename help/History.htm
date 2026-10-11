@@ -169,6 +169,22 @@
 <p class="author">Jamal Mazrui</p>
 </header>
 <h1 id="bookfido-history">bookFido History</h1>
+<h2 id="october-2026-the-start-up-fault-closed-from-both-sides">11
+October 2026 – the start-up fault, closed from both sides</h2>
+<ul>
+<li><strong>Nothing in bookFido’s start-up needs an embedded library
+now.</strong> 1.1.33 still stopped with the same
+TypeInitializationException, and its log held no line from the resolver
+at all. The field that caused it, connectionDb, of SqliteConnection’s
+type, lost its “= null”: a static field is null without it, and without
+it bookFido’s static set-up no longer touches SQLite, so it cannot fail
+there whatever the resolver does.</li>
+<li><strong>The log shows which build ran and what was asked.</strong> A
+line, “Embedded libraries: the resolver is ready”, marks a build with
+the resolver in its own class; and the resolver logs every request as it
+arrives, before anything that could fail, so a log tells a library never
+asked for from one asked for and not found.</li>
+</ul>
 <h2 id="october-2026-bookfido-starts-again">11 October 2026 – bookFido
 starts again</h2>
 <ul>

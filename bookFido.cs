@@ -155,7 +155,9 @@ class bookFido
     static bool bDbUpdated = false;
     static string sDbStatus = "";
     static Dictionary<string, Dictionary<string, string>> dCachedBooks = new Dictionary<string, Dictionary<string, string>>();
-    static SqliteConnection connectionDb = null;
+    // NO INITIALIZER (11 October 2026): "= null" put this field in bookFido's static set-up, and compiling that set-up
+    // needs SqliteConnection's library before anything else has run. A static field is null without it.
+    static SqliteConnection connectionDb;
     static volatile bool bStopLanes = false;
     static DateTime dtLastDocumentsSave = DateTime.MinValue, dtLastStateSave = DateTime.MinValue, dtRunStart = DateTime.Now;
     static volatile bool bWalkComplete = false;
@@ -254,6 +256,9 @@ class bookFido
         Log.start("bookFido");
         // CHECKPOINTS, straight to the session log, so the last one written says where a stopped run stopped.
         Log.info("Start-up: the session log is open");
+        // A MARKER, so a log shows which build ran: this line exists only where the resolver is its own class. It
+        // touches nothing of bookFido's, so it cannot start bookFido's static set-up early.
+        Log.info("Embedded libraries: the resolver is ready (EmbeddedAssemblies)");
         sLogFilePath = Log.path;
         Log.info("Start-up: the program's settings are ready");
         // F11 in the opening dialog, and the version section of its Help box,
@@ -6294,6 +6299,9 @@ static class EmbeddedAssemblies
 
     public static Assembly resolve(object oSender, ResolveEventArgs oArgs)
     {
+        // EVERY REQUEST IS LOGGED ON ARRIVAL, before anything that could fail, so a log tells "never asked" from
+        // "asked and failed".
+        try { Homer.Log.info("Embedded libraries: asked for " + oArgs.Name); } catch { }
         byte[] aBytes;
         int iJust, iRead;
         string sDiskPath, sResource, sSimpleName;

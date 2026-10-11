@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 11 October 2026 -- the start-up fault, closed from both sides
+
+- **Nothing in bookFido's start-up needs an embedded library now.** 1.1.33 still stopped with the same TypeInitializationException, and its log held no line from the resolver at all. The field that caused it, connectionDb, of SqliteConnection's type, lost its "= null": a static field is null without it, and without it bookFido's static set-up no longer touches SQLite, so it cannot fail there whatever the resolver does.
+- **The log shows which build ran and what was asked.** A line, "Embedded libraries: the resolver is ready", marks a build with the resolver in its own class; and the resolver logs every request as it arrives, before anything that could fail, so a log tells a library never asked for from one asked for and not found.
+
 ## 11 October 2026 -- bookFido starts again
 
 - **The cause, named by the new error handler.** Every run stopped at once with "TypeInitializationException: The type initializer for 'bookFido' threw an exception", over "Could not load file or assembly 'Microsoft.Data.Sqlite'". bookFido embeds its libraries in its program file, and a resolver loads them when .NET asks. But the resolver was part of bookFido and kept what it had loaded in one of bookFido's static fields. bookFido's own static set-up includes a field of SqliteConnection's type, so compiling that set-up asked for Microsoft.Data.Sqlite before any static field existed, the resolver's among them: the resolver locked on an empty field, which threw, its catch returned nothing, and .NET reported the library missing.

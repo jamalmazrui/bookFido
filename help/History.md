@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 11 October 2026 -- from an audit and a report
+
+- **The last installer survives a failed build, and error 110 is retried.** Inno Setup removes its output before writing, so 1.1.31's failure, "EndUpdateResource failed (110)", left no installer at all. Inno now writes bookFido_setup.building.exe, which replaces bookFido_setup.exe only when complete; error 110 is tried again at most twice, ten seconds apart, and any other failure stops at once.
+- **Launch after setup works on a first install.** The installer's Launch box writes a marker file into %LOCALAPPDATA%\\<App>\\logs, but on a first install that folder did not exist yet -- it was made later, when setup kept its log -- so the marker could not be written, and the program did not start after setup. The marker line now makes the folder first. Found by an audit of bookFido by another AI, and fixed in every Homer installer.
+
 ## 9 October 2026 -- from the build and release logs
 
 - **The build compiles again.** Line 5332 of bookFido.cs, the statement that fills in a book's missing address, year, title and description, had the second half of its WHERE clause pasted onto its end a second time, after the string had closed; the compiler stopped with "empty character literal". The duplicate is removed and the statement is as intended. A scan of every C# file in every Homer project found no other such damage.

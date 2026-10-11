@@ -577,17 +577,43 @@ if not defined iscc (
   goto :failed
 )
 >> "%log%" echo Inno Setup: !iscc!
+rem THE LAST INSTALLER SURVIVES A FAILED BUILD, AND ERROR 110 IS RETRIED (11 October 2026, from an audit). Inno Setup
+rem removes its output before writing the new one, so when 1.1.31's build failed with "EndUpdateResource failed (110)"
+rem there was no installer at all. Inno now writes %app%_setup.building.exe, which replaces %app%_setup.exe only once it
+rem is complete. Error 110 -- a file held by another program, often a virus scanner, while Inno writes into it -- is
+rem tried again, at most twice, ten seconds apart; any other failure stops at once. Each attempt is logged.
 echo Building %app%_setup.exe
-"!iscc!" /DHomerDev="!homerDev!" "%app%_setup.iss" >> "%log%" 2>&1
+set "sBuilding=%app%_setup.building"
+set "iTry=0"
+:isccTry
+set /a "iTry+=1"
+if exist "!sBuilding!.exe" del /q "!sBuilding!.exe"
+"!iscc!" /DHomerDev="!homerDev!" /F"!sBuilding!" "%app%_setup.iss" > "%TEMP%\%app%-iscc.txt" 2>&1
 set "iCode=!errorlevel!"
->> "%log%" echo Ran: ISCC %app%_setup.iss, exit code !iCode!
+type "%TEMP%\%app%-iscc.txt" >> "%log%"
+>> "%log%" echo Ran: ISCC %app%_setup.iss, attempt !iTry!, exit code !iCode!
+set "b110="
+if not "!iCode!"=="0" findstr /c:"EndUpdateResource" "%TEMP%\%app%-iscc.txt" >nul && set "b110=1"
+if defined b110 if !iTry! lss 3 (
+  echo Inno Setup could not finish writing the installer, error 110; trying again in ten seconds.
+  >> "%log%" echo EndUpdateResource on attempt !iTry!; trying again in ten seconds
+  timeout /t 10 /nobreak >nul
+  goto :isccTry
+)
 if not "!iCode!"=="0" (
-  echo The installer build failed. The log has Inno Setup's output.
+  if exist "!sBuilding!.exe" del /q "!sBuilding!.exe"
+  echo The installer build failed. The log has Inno Setup's output. The last %app%_setup.exe is kept.
   goto :failed
 )
-if not exist "%app%_setup.exe" (
-  echo Inno Setup returned 0 but wrote no %app%_setup.exe.
-  >> "%log%" echo ERROR: no %app%_setup.exe
+if not exist "!sBuilding!.exe" (
+  echo Inno Setup returned 0 but wrote no installer. The last %app%_setup.exe is kept.
+  >> "%log%" echo ERROR: no !sBuilding!.exe
+  goto :failed
+)
+move /y "!sBuilding!.exe" "%app%_setup.exe" >nul
+if errorlevel 1 (
+  echo The new installer could not replace %app%_setup.exe, which may be open; it is kept as !sBuilding!.exe.
+  >> "%log%" echo ERROR: could not move !sBuilding!.exe over %app%_setup.exe
   goto :failed
 )
 echo Built %app%_setup.exe version !ver!

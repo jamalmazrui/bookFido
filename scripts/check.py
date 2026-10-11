@@ -941,11 +941,14 @@ def checkSkillChecks(sKind):
     iCode, sOut = runSkill("homer-docs", "checkDocs.py", [sRoot] + (["--app", appName()] if sKind == "app" else []))
     if iCode == 1: lsNotes.append("checkDocs has findings on the documents")
     lsDatabases = [s for s in glob.glob(os.path.join(sRoot, "**", "*.db"), recursive=True) if "\\notes\\" not in s and "/notes/" not in s]
-    for sDb in lsDatabases[:20]:
+    # THE DATABASE CHECK FAILS CLOSED (1.65.32, from an audit). checkDb is required: it exits 1 on any failure and 0
+    # otherwise, so its exit code decides, not a phrase matched in its output, which a crash before the summary
+    # escaped. A missing checker, a timeout or a crash is a failure too, not a note; and every database is checked,
+    # where only the first twenty were, though all were counted. checkDocs and summarizeLogs stay advisory.
+    for sDb in lsDatabases:
         iCode, sOut = runSkill("homer-db", "checkDb.py", [sDb])
-        # checkDb ends "N checks passed, N warnings, N failures."; any failure but zero counts.
-        # (Matching the word "fail" missed "1 failure", so a failing database passed.)
-        if iCode not in (None, 0) and re.search(r"\b[1-9]\d* failures?\b", sOut): lsFailed.append("checkDb fails " + os.path.relpath(sDb, sRoot))
+        if iCode is None: lsFailed.append("checkDb could not run on " + os.path.relpath(sDb, sRoot))
+        elif iCode != 0: lsFailed.append("checkDb fails " + os.path.relpath(sDb, sRoot) + ("" if re.search(r"\b[1-9]\d* failures?\b", sOut) else " (exit code %d, no summary: a crash)" % iCode))
     if os.path.isdir(os.path.join(sRoot, "logs")) and glob.glob(os.path.join(sRoot, "logs", "*.log")):
         runSkill("homer-build-release", "summarizeLogs.py", [os.path.join(sRoot, "logs")])
     sRan = "checkDocs" + (", checkDb on %d database%s" % (len(lsDatabases), "" if len(lsDatabases) == 1 else "s") if lsDatabases else "") + ", summarizeLogs"
@@ -971,7 +974,7 @@ def checkInstallerNames():
     except Exception as oError:
         return finding("installer", "skip", "could not compare: %s" % oError)
     if lsClash:
-        return finding("installer", "fail", "%s defined both here and in the kit's components: %s; remove this copy, or #define the kit's guard name before the include" % (countNoun(len(lsClash), "function") if "countNoun" in globals() else str(len(lsClash)) + " functions", ", ".join(lsClash)))
+        return finding("installer", "fail", "%s defined both here and in the kit's components: %s; remove this copy, since the kit's copy is the one every installer shares" % (countNoun(len(lsClash), "function") if "countNoun" in globals() else str(len(lsClash)) + " functions", ", ".join(lsClash)))
     return finding("installer", "pass", "no function is defined both here and in the kit's components")
 
 
@@ -1132,8 +1135,8 @@ def checkInstaller():
     for sIss in glob.glob(os.path.join(sRoot, "*_setup.iss")):
         for sProblem in installerFindings(readText(sIss)): lsBad.append("%s %s" % (os.path.basename(sIss), sProblem))
     if lsBad:
-        return finding("installer", "fail", "the installer departs from the Homer installer pattern (homer-installer skill): " + "; ".join(lsBad[:8]))
-    return finding("installer", "pass", "the installer follows the Homer installer pattern: the kit's components, screen reader functions and a remembered folder")
+        return finding("pattern", "fail", "the installer departs from the Homer installer pattern (homer-installer skill): " + "; ".join(lsBad[:8]))
+    return finding("pattern", "pass", "the installer follows the Homer installer pattern: the kit's components, screen reader functions and a remembered folder")
 
 
 def checkHeadings():
@@ -1327,8 +1330,12 @@ def checkAccept():
         sField, sValue = sLine.split("=", 1)
         dNow[sField.strip().lower()] = sValue.strip()
 
+    # AN ACCEPTANCE FILE THAT RUNS NOTHING FAILS (1.66.1, from an audit). FileDir's accept.inix stated what done means
+    # in prose, with no [check] section the checker can run, and was reported as "not checked" release after release,
+    # so the promise it made was never tested. A file present but holding no runnable check is now a failure; an app
+    # with no accept.inix at all is still reported as not checked.
     if not lsChecks:
-        return finding("accept", "skip", "accept.inix holds 0 checks")
+        return finding("accept", "fail", "accept.inix holds 0 runnable checks: each needs a [check] section with a Run line")
     iPassed = 0
     for dCheck in lsChecks:
         sName = dCheck.get("name", dCheck.get("run", "unnamed"))
@@ -1417,6 +1424,8 @@ def main():
                          help="build the app first, and count the build as evidence")
     oParser.add_argument("--path", default="", help="the app folder; this one by default")
     oParser.add_argument("--quiet", action="store_true", help="write the report, say little")
+    oParser.add_argument("--fresh", action="store_true",
+                         help="run every check even when a pass with exactly these files is on record")
     dArguments = oParser.parse_args()
     if dArguments.path: sRoot = os.path.abspath(dArguments.path)
 
@@ -1436,8 +1445,46 @@ def main():
     sKind, sWhy = loadKind()(sRoot)
     logLine("setting kind=%s reason=%s" % (sKind, logValue(sWhy)))
     if sKind == "kit":
-        sayLine("This is the kit, which checkHomerDev checks. Run checkHomerDev here instead.")
+        # THE KIT'S CHECK RUNS, NOT A POINTER TO IT (1.65.32, from an audit): this said "run checkHomerDev instead" and
+        # returned 0, so release reported "The check passed" and tagged the kit with no check run at that point. It
+        # now runs checkHomerDev and returns its exit code; a missing checkHomerDev is a failure, not a pass.
+        sChecker = os.path.join(sRoot, "checkHomerDev.py")
+        if not os.path.isfile(sChecker):
+            sayLine("This is the kit, but checkHomerDev.py is missing, so it cannot be checked. The check fails.")
+            logLine("check end, failed: no checkHomerDev.py")
+            return 1
+        sayLine("This is the kit; running checkHomerDev, which builds the samples ...")
+        iCode = subprocess.call([sys.executable, sChecker], cwd=sRoot)
+        logLine("checkHomerDev exit code %d" % iCode)
         logLine("check end")
+        return iCode
+
+    # A PASS IS REUSED FOR THE SAME FILES (1.65.34). push runs this check, and release runs it again a minute later
+    # with nothing changed between. Every file in the project is fingerprinted (logs, notes and git's own folder
+    # left out); a pass recorded with the same fingerprint is reused, and the report says so. --fresh and --build
+    # always run every check; a failure is never reused. The cache module is the kit's, so a project without the
+    # kit at hand simply runs every check.
+    oCache, sPrint = None, ""
+    try:
+        import kind
+        sKitForCache = kind.findKit([sRoot])
+        if sKitForCache:
+            sys.path.insert(0, os.path.join(sKitForCache, "scripts"))
+            import fingerprint
+            oCache = fingerprint.Cache(sRoot, logLine)
+            sPrint = oCache.fingerprint([sRoot], [sKind, platform.python_version()])
+    except Exception as oError:
+        logLine("fingerprint unavailable, so every check runs: %s" % oError)
+        oCache = None
+    bReusable = oCache is not None and not (dArguments.fresh or dArguments.build)
+    if bReusable and oCache.isCurrent("check pass", sPrint, []):
+        sWhen = oCache.d["jobs"]["check pass"].get("when", "?")
+        finding("reused", "pass", "%s passed this check at %s with exactly these files (fingerprint %s); not run again. check --fresh runs it in full" % (appName(), sWhen, sPrint[:12]))
+        sReport = writeReport()
+        if not dArguments.quiet:
+            sayLine("%s passed this check at %s, and none of its files has changed since; not run again." % (appName(), sWhen))
+            sayLine("check --fresh runs every check anyway. The report is %s." % os.path.basename(sReport))
+        logLine("check end, reused")
         return 0
 
     if not dArguments.quiet: sayLine("Checking %s, %s %s, in %s" % (appName(), "an" if sKind[0] in "aeiou" else "a", sKind, sRoot))
@@ -1490,6 +1537,9 @@ def main():
         for sName, sVerdict, sEvidence in lsFindings:
             if sVerdict == "fail": sayLine("  failed: %s -- %s" % (sName, sEvidence))
         sayLine("The report is %s." % os.path.basename(sReport))
+    if oCache is not None:
+        if iFailed: oCache.forget("check pass")
+        elif bReusable: oCache.record("check pass", sPrint, [])
     logLine("check end")
     return 1 if iFailed else 0
 

@@ -25,3 +25,5 @@ createbookFidoRepo.cmd
 createbookFidoRepo.ps1
 scripts/release.cmd
 scripts/release.ps1
+# The installer while Inno Setup writes it; it replaces bookFido_setup.exe when complete (11 October 2026).
+bookFido_setup.building.exe

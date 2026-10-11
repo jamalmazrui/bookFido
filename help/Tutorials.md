@@ -65,6 +65,60 @@
 - [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
 - [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
 - [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
+- [1 - User Interface](#1-user-interface)
+- [2 - Install and Launch](#2-install-and-launch)
+- [3 - Gather Your First Catalog](#3-gather-your-first-catalog)
+- [4 - Read Your Catalog](#4-read-your-catalog)
+- [5 - Get Audible Companion PDFs](#5-get-audible-companion-pdfs)
+- [6 - Keep Your Goodreads Shelves](#6-keep-your-goodreads-shelves)
+- [7 - Gather NLS and Bookshare History](#7-gather-nls-and-bookshare-history)
+- [8 - Use the Catalog in DbDo and Stay Current](#8-use-the-catalog-in-dbdo-and-stay-current)
+- [9 - Conclusion](#9-conclusion)
 - [0 - Overview](#0-overview)
 - [1 - User Interface](#1-user-interface)
 - [2 - Install and Launch](#2-install-and-launch)
@@ -91,53 +145,61 @@ Welcome. This is the first of ten short walks through bookFido. I am the host; t
 
 ### Step 2: Insert+Up Arrow
 
-Two reader keys help in every walk. If a line goes by too fast, Insert plus Up Arrow says it again.
+You know your screen reader's own keys already, and three of them are worth remembering whenever you feel lost or unsure. Insert plus Up Arrow says the line you are on again.
 
 Screen reader:
 
 - OK button
 
-Confirm the wording with a live run: buildTutorials -live.
-
 ### Step 3: Insert+Tab
 
-And whenever you are unsure where you are, Insert plus Tab says what has the focus.
+Insert plus Tab says what has the focus: its name, its role, and its value or state.
 
 Screen reader:
 
 - Audible check box, checked
 
-Confirm the wording with a live run: buildTutorials -live.
+### Step 4: Insert+T
 
-### Step 4
+Insert plus T says the title of the window.
 
-bookFido gathers every book you own or have read, from up to five libraries, into one catalog you can read, search and sort.
+Screen reader:
+
+- bookFido
 
 ### Step 5
 
-The libraries are Audible, Kindle, Goodreads, Bookshare, and NLS, the National Library Service's talking book collection.
+If you set your screen reader to use Caps Lock in place of Insert, Caps Lock works the same way for all three.
 
 ### Step 6
 
-It signs in as you in Microsoft Edge and reads the same pages you would read yourself, politely and slowly, and it sends nothing about your books anywhere.
+bookFido gathers every book you own or have read, from up to five libraries, into one catalog you can read, search and sort.
 
 ### Step 7
 
-Then it fills in what the libraries leave out: publication years, publishers, descriptions, and author biographies, from Open Library and Wikipedia.
+The libraries are Audible, Kindle, Goodreads, Bookshare, and NLS, the National Library Service's talking book collection.
 
 ### Step 8
 
-The result is one combined catalog in order by title, a document for each library, a workbook, and a database you can browse in DbDo.
+It signs in as you in Microsoft Edge and reads the same pages you would read yourself, politely and slowly, and it sends nothing about your books anywhere.
 
 ### Step 9
 
-Here are the walks. One, the dialog. Two, installing. Three, your first catalog. Four, reading it. Five, Audible's companion PDFs.
+Then it fills in what the libraries leave out: publication years, publishers, descriptions, and author biographies, from Open Library and Wikipedia.
 
 ### Step 10
 
-Six, Goodreads shelves and reviews. Seven, NLS and Bookshare history. Eight, the catalog in DbDo and keeping it current. Nine, the conclusion, a glossary, and help.
+The result is one combined catalog in order by title, a document for each library, a workbook, and a database you can browse in DbDo.
 
 ### Step 11
+
+Here are the walks. One, the dialog. Two, installing. Three, your first catalog. Four, reading it. Five, Audible's companion PDFs.
+
+### Step 12
+
+Six, Goodreads shelves and reviews. Seven, NLS and Bookshare history. Eight, the catalog in DbDo and keeping it current. Nine, the conclusion, a glossary, and help.
+
+### Step 13
 
 Each walk is a few minutes long and builds on the last, so they are best heard in order the first time. Walk one comes next.
 

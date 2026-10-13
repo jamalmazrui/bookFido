@@ -38,8 +38,10 @@ rem   - one log per run: logs\bookFido-build-yyyyMMdd-HHmmss.log. The console
 rem     says briefly what is happening; the log holds every command and
 rem     its exit code.
 rem
-rem   build          steps the version, then builds
+rem   build          steps the version, then builds -- or, when nothing it ships has
+rem                  changed since its last build, keeps everything as it is
 rem   build nobump   keeps the current number
+rem   build fresh    builds everything, even when nothing has changed
 rem
 rem A running copy of the program is never closed. The build says so and
 rem stops only when the copy running is exec\bookFido.exe from THIS project,
@@ -130,6 +132,26 @@ for /f "delims=" %%v in ('ver') do >> "%log%" echo Windows: %%v
 >> "%log%" echo Settings: useDocs=!useDocs! useInstaller=!useInstaller! useVersionSteps=!useVersionSteps!
 echo Building %app%. The log is %log%
 
+rem ---- AN APP SOURCE TIDY MOVED ASIDE COMES BACK (12 October 2026) ----
+rem PdfStructure.cs is compiled with bookFido.cs, but RepoFiles.txt did not name
+rem it, so tidy took it for a stray and moved it into notes\other, and the next
+rem build stopped: "Source file PdfStructure.cs could not be found". The kit's
+rem tidy now keeps every file named in appSources; this brings back one it moved
+rem before, the newest copy if it moved more than once (PdfStructure_2.cs).
+for %%s in (!appSources!) do (
+  if not exist "%%s" (
+    set "sFound="
+    for /f "delims=" %%f in ('dir /b /o:d "notes\other\%%~ns*%%~xs" 2^>nul') do set "sFound=notes\other\%%f"
+    if defined sFound (
+      move /y "!sFound!" "%%s" >nul
+      >> "%log%" echo Restored the app source %%s from !sFound!, where tidy had moved it
+      echo Restored %%s from !sFound!, where tidy had moved it.
+    ) else (
+      >> "%log%" echo The app source %%s is missing, and no copy was found in notes\other
+    )
+  )
+)
+
 rem ---- the Homer Development Kit -------------------------------------
 set "homerDev="
 if defined HomerDev if exist "%HomerDev%\exec\CSharp\Lbc.cs" set "homerDev=%HomerDev%"
@@ -163,6 +185,48 @@ if errorlevel 1 (
 )
 echo Kit !homerVer! at !homerDev!
 
+rem ---- NOTHING CHANGED, NOTHING BUILT (12 October 2026) --------------
+rem A cycle with nothing to change made a new program, a new installer and a new
+rem release every time. Now the build asks first whether anything it ships has
+rem changed since its last success: what the program is made from (its source and
+rem app sources, resources, icon, manifest, build.cmd, version.txt, the fetched
+rem libraries in work, the kit classes it compiles in) and what the installer packs
+rem (the .iss and the kit's component table, version.txt, and the folders it
+rem ships). If nothing has, the program and installer stay as the last build made
+rem them, with their number, and release finds that version already published.
+rem If anything has, the build is the full one, with a new number: a help page
+rem that changed must reach users in a new release, not the same version again.
+rem The kit's one fingerprint store decides (scripts\fingerprint.py in the kit,
+rem exec\fingerprints.json here); every decision is in the log. "build fresh"
+rem builds regardless.
+set "bProgramCurrent="
+set "sFingerprint=!homerDev!\scripts\fingerprint.py"
+set "lsProgramInputs="%app%.cs" build.cmd version.txt work\nuget work\nvda"
+for %%s in (!appSources!) do set "lsProgramInputs=!lsProgramInputs! "%%~s""
+for %%r in (!csResources!) do set "lsProgramInputs=!lsProgramInputs! "%%~r""
+for %%m in (!homerModules!) do set "lsProgramInputs=!lsProgramInputs! "!homerDev!\exec\CSharp\%%m.cs""
+if exist "%app%.ico" set "lsProgramInputs=!lsProgramInputs! "%app%.ico""
+if exist "%app%.manifest" set "lsProgramInputs=!lsProgramInputs! "%app%.manifest""
+if /i "%~1"=="fresh" goto :programChecked
+if not exist "!sFingerprint!" goto :programChecked
+python "!sFingerprint!" check "%CD%" "program %app%" --in !lsProgramInputs! --out "exec\%app%.exe" >> "%log%" 2>&1
+if not errorlevel 1 set "bProgramCurrent=1"
+:programChecked
+set "lsSetupInputs="%app%_setup.iss" "!homerDev!\Templates\HomerComponents.iss" version.txt exec help scripts"
+for %%d in (configs data templates) do if exist "%%d" set "lsSetupInputs=!lsSetupInputs! %%d"
+for %%f in (License.md License.htm ReadMe.md ReadMe.htm "%app%.ico") do if exist "%%~f" set "lsSetupInputs=!lsSetupInputs! "%%~f""
+if defined bProgramCurrent if defined useInstaller (
+  set "bProgramCurrent="
+  if exist "%app%_setup.exe" (
+    python "!sFingerprint!" check "%CD%" "installer %app%" --in !lsSetupInputs! --out "%app%_setup.exe" >> "%log%" 2>&1
+    if not errorlevel 1 set "bProgramCurrent=1"
+  )
+)
+if defined bProgramCurrent (
+  echo Nothing %app% ships has changed since its last build, so nothing is built again.
+  >> "%log%" echo Unchanged: exec\%app%.exe and %app%_setup.exe are current with every input; not compiled, version kept
+)
+
 rem ---- version: version.txt is the single source of truth -----------
 set "bSeeded="
 if not exist "version.txt" call :seedVersion
@@ -176,13 +240,14 @@ if "!ver!"=="" (
 )
 if defined bSeeded goto :keepVersion
 if /i "%~1"=="nobump" goto :keepVersion
+if defined bProgramCurrent goto :keepVersion
 if not defined useVersionSteps goto :keepVersion
 call :takeNextVersion
 goto :haveVersion
 
 :keepVersion
 echo Version !ver!, kept
->> "%log%" echo Version: !ver! (kept: seeded this run, nobump, or no version steps)
+>> "%log%" echo Version: !ver! (kept: seeded this run, nobump, no version steps, or nothing changed)
 
 :haveVersion
 rem Generated output: do not edit it, and do not commit it. A const, so the
@@ -394,6 +459,7 @@ for %%D in (work\nuget\*.dll) do (
 )
 >> "%log%" echo Embedded libraries: !resourceArgs!
 
+if defined bProgramCurrent goto :programReady
 rem ---- a copy running from this project's exec cannot be replaced ------
 powershell -NoProfile -Command "$p = Get-Process -Name '%app%' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -like '%CD%\exec\*' }; if ($p) { exit 1 } else { exit 0 }"
 if errorlevel 1 (
@@ -436,15 +502,18 @@ if not "!iCode!"=="0" (
 )
 echo Built exec\%app%.exe version !ver!
 >> "%log%" echo Built exec\%app%.exe version !ver!
+if exist "!sFingerprint!" python "!sFingerprint!" record "%CD%" "program %app%" --in !lsProgramInputs! --out "exec\%app%.exe" >> "%log%" 2>&1
 rem The program at the top, from the layout before exec: removed now that the
 rem new one exists. It is build output, never anything a person made.
 if exist "%app%.exe" del /q "%app%.exe" && >> "%log%" echo Removed the old top-level %app%.exe
+:programReady
 
 rem ---- the kit's tools this app uses, refreshed on every build ----------
 if not exist "scripts" mkdir "scripts"
 for %%F in (!kitTools!) do (
   if exist "!homerDev!\scripts\%%F" (
-    copy /y "!homerDev!\scripts\%%F" "scripts\" >nul && >> "%log%" echo Refreshed scripts\%%F
+    rem Copied only when it differs, so a tool that has not changed is left as it is.
+    fc /b "!homerDev!\scripts\%%F" "scripts\%%F" >nul 2>&1 || (copy /y "!homerDev!\scripts\%%F" "scripts\" >nul && >> "%log%" echo Refreshed scripts\%%F)
   ) else (
     >> "%log%" echo NOT IN THE KIT: scripts\%%F
     echo The kit has no scripts\%%F. Update HomerDev to !kitNeeded! or later.
@@ -560,6 +629,11 @@ if errorlevel 1 (
   echo A file in help or an install script is not in %app%_setup.iss. The log names each one.
   goto :failed
 )
+rem Nothing shipped changed (decided before the version step): the installer stays.
+if defined bProgramCurrent (
+  >> "%log%" echo Installer: %app%_setup.exe kept; Inno Setup not run
+  goto :done
+)
 set "progFiles86=%ProgramFiles(x86)%"
 set "progFiles=%ProgramFiles%"
 set "iscc="
@@ -619,6 +693,7 @@ if errorlevel 1 (
 )
 echo Built %app%_setup.exe version !ver!
 >> "%log%" echo Built %app%_setup.exe version !ver!
+if exist "!sFingerprint!" python "!sFingerprint!" record "%CD%" "installer %app%" --in !lsSetupInputs! --out "%app%_setup.exe" >> "%log%" 2>&1
 
 :done
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffzzz'"`) do set "sIso=%%i"

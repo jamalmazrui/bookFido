@@ -473,6 +473,29 @@ def checkEncoding():
                    countNoun(iChecked, "file"))
 
 
+def checkBatchBlocks():
+    """BATCH BLOCKS (12 October 2026). push.cmd carried echo ... (under 100 MB). inside an if block from 1.72.5 on:
+    every push ended in a syntax error right after its staged list, took build_release with it before the cycle's
+    lock was released, and left nothing in either log to say why. Each project batch file is read for that mistake."""
+    lsBad = []
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from fixEncoding import blockBreakers
+    except Exception as oError:
+        return finding("batch", "skip", "the kit's fixEncoding.py, which holds the rule, could not be loaded: %s" % oError)
+    for sDirPath, lsDirs, lsNames in os.walk(sRoot):
+        lsDirs[:] = [s for s in lsDirs if s.lower() not in c_lsSkipFolders and s.lower() not in ("logs", "notes")]
+        for sName in sorted(lsNames):
+            if not sName.lower().endswith((".cmd", ".bat")): continue
+            sPath = os.path.join(sDirPath, sName)
+            for iLine, sText in blockBreakers(sPath):
+                lsBad.append("%s line %d" % (os.path.relpath(sPath, sRoot), iLine))
+                logLine("BATCH BLOCK BROKEN: %s line %d: %s" % (os.path.relpath(sPath, sRoot), iLine, sText))
+    if lsBad:
+        return finding("batch", "fail", "a bracket in an echo closes its block early, a syntax error when the file runs (escape it as ^( ^)): " + ", ".join(lsBad[:10]))
+    return finding("batch", "pass", "no batch file has a bracket that closes its block early")
+
+
 def checkEmpty():
     """Zero-byte files among the project's own. logs is passed over (1.43.22):
     a run's record is not part of the project, and the kit's release was
@@ -1496,6 +1519,7 @@ def main():
         checkDocumentsNotApp(sKind)
         checkLicense(sKind)
         checkEncoding()
+        checkBatchBlocks()
         checkEmpty()
         checkLayout(sKind)
         checkHeadings()
@@ -1508,6 +1532,7 @@ def main():
         checkDocuments()
         checkLicense("app")
         checkEncoding()
+        checkBatchBlocks()
         checkEmpty()
         checkVersion()
         checkPublish()
@@ -1542,7 +1567,12 @@ def main():
         sayLine("The report is %s." % os.path.basename(sReport))
     if oCache is not None:
         if iFailed: oCache.forget("check pass")
-        elif bReusable: oCache.record("check pass", sPrint, [])
+        elif bReusable:
+            # THE PASS IS RECORDED FOR THE FILES AS THE CHECK LEFT THEM (12 October 2026). The print taken before the
+            # checks was recorded, but a passing check runs the app's acceptance build, which rewrites the program, the
+            # installer and generated pages; so release's check, a minute after push's, found "its inputs changed" and
+            # built DbDo a third time. The files as they stand after a pass are the ones that passed.
+            oCache.record("check pass", oCache.fingerprint([sRoot], [sKind, platform.python_version()]), [])
     logLine("check end")
     return 1 if iFailed else 0
 

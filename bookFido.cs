@@ -155,6 +155,7 @@ class bookFido
     static volatile string sProgressText = "";
     static string sConsolidatedHtmPath = "";
     static bool bDbUpdated = false;
+    static int iSamplesRemoved = 0;
     static string sDbStatus = "";
     static Dictionary<string, Dictionary<string, string>> dCachedBooks = new Dictionary<string, Dictionary<string, string>>();
     // NO INITIALIZER (11 October 2026): "= null" put this field in bookFido's static set-up, and compiling that set-up
@@ -553,7 +554,7 @@ class bookFido
             (lBookshareCatalog.Count > 0 ? "Bookshare history: " + lBookshareCatalog.Count + " books cataloged as Bookshare_Library.htm and Bookshare_Library.md.  " : "") +
             (lNlsCatalog.Count > 0 ? "NLS reading history: " + lNlsCatalog.Count + " books cataloged as NLS_Library.htm and NLS_Library.md.  " : "") +
             "The combined catalog of every library was saved as bookFido.htm and bookFido.md.  " +
-            (bDbUpdated ? "Your libraries were written to DbDo's BookTrail, one row for each copy of each book, in %LOCALAPPDATA%\\DbDo\\data\\BookTrail.  " : (sDbStatus == "" ? "No database was written, because DbDo is not installed for you.  " : "BookTrail could not be written this run: " + sDbStatus + ".  ")) +
+            (bDbUpdated ? "Your libraries were written to DbDo's BookTrail, one row for each copy of each book, in %LOCALAPPDATA%\\DbDo\\data\\BookTrail.  " + (iSamplesRemoved > 0 ? "The " + iSamplesRemoved + " sample " + (iSamplesRemoved == 1 ? "book" : "books") + " DbDo's template came with " + (iSamplesRemoved == 1 ? "was" : "were") + " removed, so BookTrail holds only your own.  " : "") : (sDbStatus == "" ? "No database was written, because DbDo is not installed for you.  " : "BookTrail could not be written this run: " + sDbStatus + ".  ")) +
             "The catalog was saved as Audible_Library.htm and Audible_Library.md in Downloads, every library's spreadsheet is a sheet of the bookFido.xlsx workbook there, and the combined bookFido catalog opens in your web browser when you choose OK.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.";
         log(sSummary);
         writeSummarySections();
@@ -5215,25 +5216,41 @@ class bookFido
 
     // The BookTrail database to write, or "" when DbDo is not installed for this user. A DbDo that has never opened
     // BookTrail gets it from DbDo's installed template, as DbDo itself would give it.
+    // DbDo's installed BookTrail template, or "" when DbDo is not installed in Program Files.
+    static string dbdoTemplate()
+    {
+        foreach (string sRoot in new string[] { Environment.GetEnvironmentVariable("ProgramFiles") ?? "", Environment.GetEnvironmentVariable("ProgramFiles(x86)") ?? "" })
+        {
+            string sTemplate = Path.Combine(sRoot, "DbDo", "templates", "BookTrail", "BookTrail.db");
+            if (sRoot != "" && File.Exists(sTemplate)) return sTemplate;
+        }
+        return "";
+    }
+
     static string bookTrailPath()
     {
-        string sDbDo, sDb, sFolder;
+        string sDb, sDbDo, sFolder, sTemplate;
 
         sDbDo = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DbDo");
         if (!Directory.Exists(sDbDo)) { log("DbDo is not installed for this user (no " + sDbDo + "), so no database is written; the documents are the output"); return ""; }
         sFolder = Path.Combine(sDbDo, "data", "BookTrail");
         sDb = Path.Combine(sFolder, "BookTrail.db");
         if (File.Exists(sDb)) return sDb;
-        foreach (string sRoot in new string[] { Environment.GetEnvironmentVariable("ProgramFiles") ?? "", Environment.GetEnvironmentVariable("ProgramFiles(x86)") ?? "" })
+        sTemplate = dbdoTemplate();
+        if (sTemplate != "")
         {
-            string sTemplate = Path.Combine(sRoot, "DbDo", "templates", "BookTrail", "BookTrail.db");
-            if (sRoot == "" || !File.Exists(sTemplate)) continue;
             try
             {
                 Directory.CreateDirectory(sFolder);
                 File.Copy(sTemplate, sDb);
-                string sInix = Path.Combine(Path.GetDirectoryName(sTemplate), "BookTrail.inix");
-                if (File.Exists(sInix) && !File.Exists(Path.Combine(sFolder, "BookTrail.inix"))) File.Copy(sInix, Path.Combine(sFolder, "BookTrail.inix"));
+                // Every companion the template has -- its settings, reports, queries and scripts -- comes too, as DbDo
+                // would bring them; a file already in the folder is kept.
+                foreach (string sCompanion in Directory.GetFiles(Path.GetDirectoryName(sTemplate)))
+                {
+                    string sTarget = Path.Combine(sFolder, Path.GetFileName(sCompanion));
+                    if (string.Equals(Path.GetFileName(sCompanion), "BookTrail.db", StringComparison.OrdinalIgnoreCase) || File.Exists(sTarget)) continue;
+                    File.Copy(sCompanion, sTarget);
+                }
                 log("BookTrail was made from DbDo's template: " + sTemplate + " to " + sDb);
                 return sDb;
             }
@@ -5241,6 +5258,54 @@ class bookFido
         }
         log("DbDo's folder is here but BookTrail is not, and no DbDo template was found to make it from, so no database is written");
         return "";
+    }
+
+    // THE SAMPLE BOOKS GO ONCE YOUR OWN ARRIVE (12 October 2026). DbDo's BookTrail template ships six sample books so a
+    // new reader sees what the database holds, and bookFido fills that same file -- so a library of 1,217 gathered books
+    // still carried A Study in Scarlet and five more nobody had read. After a run has written books, each sample is
+    // removed: a row whose title, author, source and added time match a sample in DbDo's installed template, that has
+    // never been edited (edited is still its added time) and that nothing in maps links to. The samples are read from
+    // the template itself, so a change of samples in DbDo needs no change here; a sample you edited or linked is yours,
+    // and stays. Returns how many were removed.
+    static int removeSampleBooks()
+    {
+        int iCount, iRemoved;
+        List<string[]> lSamples;
+        string sTemplate;
+
+        sTemplate = dbdoTemplate();
+        if (sTemplate == "") { log("Sample books: DbDo's template was not found, so none were looked for"); return 0; }
+        lSamples = new List<string[]>();
+        using (SqliteConnection connectionTemplate = new SqliteConnection("Data Source=" + sTemplate + ";Mode=ReadOnly;Pooling=False"))
+        {
+            connectionTemplate.Open();
+            using (SqliteCommand commandRead = connectionTemplate.CreateCommand())
+            {
+                commandRead.CommandText = "SELECT coalesce(title,''), coalesce(author,''), coalesce(source,''), coalesce(added,'') FROM books";
+                using (SqliteDataReader readerRows = commandRead.ExecuteReader())
+                {
+                    while (readerRows.Read()) lSamples.Add(new string[] { readerRows.GetString(0), readerRows.GetString(1), readerRows.GetString(2), readerRows.GetString(3) });
+                }
+            }
+        }
+        iRemoved = 0;
+        foreach (string[] aSample in lSamples)
+        {
+            using (SqliteCommand commandRemove = connectionDb.CreateCommand())
+            {
+                commandRemove.CommandText = "DELETE FROM books WHERE coalesce(title,'') = @t AND coalesce(author,'') = @a AND coalesce(source,'') = @s" +
+                    " AND coalesce(added,'') = @d AND edited IS added" +
+                    " AND NOT EXISTS (SELECT 1 FROM maps WHERE (tbl1 = 'books' AND prime1 = books.prime) OR (tbl2 = 'books' AND prime2 = books.prime))";
+                commandRemove.Parameters.AddWithValue("@t", aSample[0]);
+                commandRemove.Parameters.AddWithValue("@a", aSample[1]);
+                commandRemove.Parameters.AddWithValue("@s", aSample[2]);
+                commandRemove.Parameters.AddWithValue("@d", aSample[3]);
+                iCount = commandRemove.ExecuteNonQuery();
+            }
+            if (iCount > 0) { iRemoved = iRemoved + iCount; log("Sample books: removed '" + aSample[0] + "' (" + aSample[2] + "), untouched since it came with DbDo's template"); }
+        }
+        log("Sample books: " + iRemoved + " of " + lSamples.Count + " removed; any sample edited or linked was kept");
+        return iRemoved;
     }
 
     static List<string[]> sqlRows(string sSql, int iColumns)
@@ -5363,6 +5428,7 @@ class bookFido
                 foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) iBookCount = iBookCount + saveCopy(dRow, "Goodreads");
                 foreach (Dictionary<string, object> dRow in lBookshareCatalog) iBookCount = iBookCount + saveCopy(dRow, "Bookshare");
                 foreach (Dictionary<string, object> dRow in lNlsCatalog) iBookCount = iBookCount + saveCopy(dRow, "BARD (NLS)");
+                if (iBookCount > 0) iSamplesRemoved = removeSampleBooks();
                 saveAuthors();
                 transactionSave.Commit();
                 log("BookTrail was updated: " + iBookCount + " copies across the five libraries");

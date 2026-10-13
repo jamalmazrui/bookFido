@@ -6,6 +6,10 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 12 October 2026 -- one switch to install with every default
+
+- **bookFido_setup.exe /DEFAULTS** installs as pressing Enter at every step would, then launches bookFido; administrator approval is still asked. A /VERYSILENT install no longer stops at a Results box nobody can see.
+
 ## 12 October 2026 -- BookTrail holds only your own books
 
 - **The sample books go once yours arrive.** DbDo's BookTrail template comes with six sample books, so a new reader sees what the database holds, and bookFido fills that same file in %LOCALAPPDATA%\\DbDo\\data\\BookTrail. A library of 1,217 gathered books still carried A Study in Scarlet and five more nobody had read. After a run writes your books, each sample is removed -- but only one that has never been edited and that nothing links to, so a sample you made your own stays. The samples are read from DbDo's installed template, so new samples in DbDo need no change to bookFido. The run's summary says how many went.

@@ -167,11 +167,11 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\exec\{#AppExeName}"; WorkingD
 FileName: "{cmd}"; \
   Parameters: "/c md ""{localappdata}\{#AppName}\logs"" 2>nul & echo launch > ""{localappdata}\{#AppName}\logs\{#AppName}_launch.flag"""; \
   Description: "Launch {#AppName} (desktop hotkey {#HotKeyDisplay})"; \
-  Flags: postinstall skipifsilent runhidden runasoriginaluser
+  Flags: postinstall runhidden runasoriginaluser; Check: homerFinishRuns
 
 FileName: "{app}\help\{#AppName}.htm"; \
   Description: "Open the user guide"; \
-  Flags: postinstall shellexec nowait skipifsilent skipifdoesntexist runasoriginaluser unchecked
+  Flags: postinstall shellexec nowait skipifdoesntexist runasoriginaluser unchecked; Check: homerFinishRuns
 
 [UninstallDelete]
 ; ONLY WHAT bookFido CAN MAKE AGAIN: its logs and the SQLite engine it wrote
@@ -222,6 +222,9 @@ end;
 //  again at the end it would find this very install and call it a reinstall.
 function InitializeSetup(): Boolean;
 begin
+  //  setup.exe /DEFAULTS: every Enter pressed for you (HomerComponents.iss). Alone,
+  //  it starts setup again very silently and this copy ends here.
+  if homerStartForDefaults() then begin Result := False; exit; end;
   sPriorVersion := priorVersion();
   Result := True;
 end;

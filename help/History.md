@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 12 October 2026 -- Camel Type constants, and tools before the decision
+
+- **bookFido's constants are Camel Type's**, without the obsolete c_ prefix.
+- **The build refreshes the kit's tools before it decides whether anything changed,** so a kit update to them reaches the installer in the same build.
+
 ## 12 October 2026 -- one switch to install with every default
 
 - **bookFido_setup.exe /DEFAULTS** installs as pressing Enter at every step would, then launches bookFido; administrator approval is still asked. A /VERYSILENT install no longer stops at a Results box nobody can see.

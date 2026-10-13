@@ -21,8 +21,8 @@ using UglyToad.PdfPig.Content;
 static class PdfStructure
 {
     // At least this share of the pages' letters must be reached through the tags for the tags to be trusted.
-    const double c_nCoverageNeeded = 0.6;
-    const int c_iDepthLimit = 60;
+    const double nCoverageNeeded = 0.6;
+    const int iDepthLimit = 60;
 
     class Node
     {
@@ -64,7 +64,7 @@ static class PdfStructure
                 int iTagLetters = letterCount(oTop);
                 if (iPageLetters == 0) { sHow = "no text on the pages"; return ""; }
                 double nCoverage = (double)iTagLetters / iPageLetters;
-                if (nCoverage < c_nCoverageNeeded) { sHow = string.Format("tagged in part: the tags reach {0:0}% of the text, so the layout is read instead", nCoverage * 100); return ""; }
+                if (nCoverage < nCoverageNeeded) { sHow = string.Format("tagged in part: the tags reach {0:0}% of the text, so the layout is read instead", nCoverage * 100); return ""; }
                 StringBuilder sbHtml = new StringBuilder();
                 int iLastLevel = 1;
                 render(oTop, sbHtml, ref iLastLevel);
@@ -84,7 +84,7 @@ static class PdfStructure
 
     static void walk(PdfDocument oDoc, UglyToad.PdfPig.Tokens.IToken oToken, Node oParent, Dictionary<string, string> dText, int iDepth)
     {
-        if (iDepth > c_iDepthLimit) return;
+        if (iDepth > iDepthLimit) return;
         oToken = resolved(oDoc, oToken);
         UglyToad.PdfPig.Tokens.ArrayToken oArray = oToken as UglyToad.PdfPig.Tokens.ArrayToken;
         if (oArray != null)

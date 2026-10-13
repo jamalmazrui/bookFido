@@ -123,7 +123,7 @@ class bookFido
     // Constant definitions
     const int iDebugPort = 9222, iDelayApiMs = 800, iDelayDownloadMs = 1500, iDelayWikipediaMs = 1800, iDelayPageMs = 3000, iHttpTimeoutMs = 120000, iJitterMaxMs = 1500, iLaunchWaitMainMs = 8000, iProbeTimeoutMs = 2000, iRenderWaitMs = 20000, iSignInWaitMs = 6000, iTabWaitMs = 4000, iNlsPageSize = 250, iLaunchWaitMs = 30000, iLoginTryMax = 3, iDrainReportMs = 30000, iHtmStatusCreated = 1, iHtmStatusExisted = 0, iHtmStatusFailed = 2, iLanePollMs = 250, iRateLimitStrikesMax = 3, iMessageBoxMs = 2000, iNavigateTimeoutMs = 60000, iSaveDocumentsMs = 360000, iSaveStateMs = 120000, iStallTicks = 3, iPageMax = 500, iSettleMs = 2500, iStatusDownloaded = 0, iStatusFailed = 3, iStatusFailedHtml = 2, iStatusSkipped = 1;
     // The GitHub owner whose bookFido releases F11 asks about.
-    const string c_sGitHubOwner = "jamalmazrui";
+    const string sGitHubOwner = "jamalmazrui";
     const string sApiUserAgent = "bookFido/1.0 (https://github.com/JamalMazrui/bookFido; personal library catalog)", sAudibleApiUrl = "https://api.audible.com/1.0/catalog/products/", sEdgePathPrimary = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", sEdgePathSecondary = "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", sLibraryUrl = "https://www.audible.com/library/titles", sOpenLibraryUrl = "https://openlibrary.org/search.json", sOpenLibraryAuthorSearchUrl = "https://openlibrary.org/search/authors.json?q=", sOpenLibraryAuthorUrl = "https://openlibrary.org/authors/", sWikipediaApiUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=1&srsearch=", sWikipediaPageUrl = "https://en.wikipedia.org/wiki/", sWikipediaSummaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/", sVersionText = BuildVersion.Version, sStartUrl = "https://www.audible.com/", sUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
     const uint iMbOk = 0x00000000, iMbSetForeground = 0x00010000, iMbTopmost = 0x00040000;
 
@@ -266,7 +266,7 @@ class bookFido
         Log.info("Start-up: the program's settings are ready");
         // F11 in the opening dialog, and the version section of its Help box,
         // ask GitHub through this whether a newer bookFido exists.
-        Elevate.configure(c_sGitHubOwner, "bookFido", sVersionText);
+        Elevate.configure(sGitHubOwner, "bookFido", sVersionText);
         Log.info("Start-up: the update check is configured; starting the main task");
         iExitCode = 0;
         try { iExitCode = mainAsync().GetAwaiter().GetResult(); }
@@ -3457,7 +3457,7 @@ class bookFido
     // an Image descriptions section at the end.
     // THE MARK OF THIS CONVERTER (11 October 2026): an .htm bookFido made before it, without this mark, is made
     // again once, so the better reading reaches the files already there; a file anyone else made is left alone.
-    const string c_sHtmGenerator = "bookFido companion converter 2";
+    const string sHtmGenerator = "bookFido companion converter 2";
 
     static bool letterIsBold(Letter oLetter)
     {
@@ -3500,7 +3500,7 @@ class bookFido
             }
         }
         catch (Exception) { return false; }
-        if (sHead.Contains(c_sHtmGenerator)) return false;
+        if (sHead.Contains(sHtmGenerator)) return false;
         if (sHead.Contains("name=\"generator\"")) return sHead.Contains("content=\"bookFido companion converter");
         return sHead.Contains("<meta charset=\"utf-8\">\r\n<title>") && sHead.Contains("</head>\r\n<body>\r\n<main>\r\n<h1>");
     }
@@ -3583,7 +3583,7 @@ class bookFido
         sDocTitle = pdfTitleFromHay(sHay);
         if (cleanRoot(sDocTitle) == "") sDocTitle = Path.GetFileNameWithoutExtension(sPdfPath);
         sbHtml = new StringBuilder();
-        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"" + htmlText(sLang) + "\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<meta name=\"generator\" content=\"" + c_sHtmGenerator + "\">\r\n<title>" + htmlText(sDocTitle) + "</title>\r\n</head>\r\n<body>\r\n<main>\r\n");
+        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"" + htmlText(sLang) + "\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<meta name=\"generator\" content=\"" + sHtmGenerator + "\">\r\n<title>" + htmlText(sDocTitle) + "</title>\r\n</head>\r\n<body>\r\n<main>\r\n");
         sbHtml.Append("<h1>" + htmlText(sDocTitle) + "</h1>\r\n");
         iLastLevel = 1;
         // A TAGGED PDF SAYS WHAT EACH PIECE IS (11 October 2026): its own headings, lists, tables and figure
@@ -5202,8 +5202,8 @@ class bookFido
     // reason -- is filled only where it is blank, except that a status only ever moves forward: want to read, then
     // reading, then read. Tags and notes only gain lines. Nothing a reader typed is overwritten.
 
-    const string c_sBookTrailLook = "look TEXT GENERATED ALWAYS AS (rtrim(iif(author IS NOT NULL AND length(CAST(author AS TEXT))>0, CAST(author AS TEXT) || ' | ', '') || iif(title IS NOT NULL AND length(CAST(title AS TEXT))>0, CAST(title AS TEXT) || ' | ', '') || iif(series IS NOT NULL AND length(CAST(series AS TEXT))>0, CAST(series AS TEXT) || ' | ', '') || iif(volume IS NOT NULL AND length(CAST(volume AS TEXT))>0, CAST(volume AS TEXT) || ' | ', '') || iif(source IS NOT NULL AND length(CAST(source AS TEXT))>0, CAST(source AS TEXT) || ' | ', ''), ' | ')) STORED";
-    const string c_sBookTrailPrime = "prime TEXT GENERATED ALWAYS AS (coalesce(CAST(author AS TEXT),'')||'|'||coalesce(CAST(title AS TEXT),'')||'|'||coalesce(CAST(source AS TEXT),'')) STORED";
+    const string sBookTrailLook = "look TEXT GENERATED ALWAYS AS (rtrim(iif(author IS NOT NULL AND length(CAST(author AS TEXT))>0, CAST(author AS TEXT) || ' | ', '') || iif(title IS NOT NULL AND length(CAST(title AS TEXT))>0, CAST(title AS TEXT) || ' | ', '') || iif(series IS NOT NULL AND length(CAST(series AS TEXT))>0, CAST(series AS TEXT) || ' | ', '') || iif(volume IS NOT NULL AND length(CAST(volume AS TEXT))>0, CAST(volume AS TEXT) || ' | ', '') || iif(source IS NOT NULL AND length(CAST(source AS TEXT))>0, CAST(source AS TEXT) || ' | ', ''), ' | ')) STORED";
+    const string sBookTrailPrime = "prime TEXT GENERATED ALWAYS AS (coalesce(CAST(author AS TEXT),'')||'|'||coalesce(CAST(title AS TEXT),'')||'|'||coalesce(CAST(source AS TEXT),'')) STORED";
     static readonly string[] aBookTrailColumns = new string[] {
         "title TEXTLINE", "subtitle TEXTLINE", "author TEXTLINE", "narrator TEXTLINE", "series TEXTLINE", "volume TEXTLINE",
         "status TEXTLINE", "format TEXTLINE", "source TEXTLINE", "catalog_number TEXTLINE", "genre TEXTLINE", "rating TEXTLINE",
@@ -5349,7 +5349,7 @@ class bookFido
         lsCols.AddRange(lsExtra);
         lsCols.AddRange(aBookTrailTail);
         sDdl = "CREATE TABLE \"books\" (\n  book_id INTEGER PRIMARY KEY AUTOINCREMENT,\n  added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  "
-            + string.Join(",\n  ", lsCols.ToArray()) + ",\n  " + c_sBookTrailLook + ",\n  " + c_sBookTrailPrime + ",\n  marked INTEGER NOT NULL DEFAULT 0\n)";
+            + string.Join(",\n  ", lsCols.ToArray()) + ",\n  " + sBookTrailLook + ",\n  " + sBookTrailPrime + ",\n  marked INTEGER NOT NULL DEFAULT 0\n)";
         lsCopy = new List<string>();
         foreach (string sName in dHave.Keys)
         {

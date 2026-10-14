@@ -1219,6 +1219,24 @@ class bookFido
                 fIn.Read(abTail, 0, abTail.Length);
             }
             if (Encoding.ASCII.GetString(abTail).IndexOf("%%EOF", StringComparison.Ordinal) < 0) return "it does not end as a PDF does, so it is probably cut short";
+            // READ BY THE PARSER, NOT ONLY BY ITS MARKERS (14 October 2026, from a second audit by another AI): a short file
+            // holding only "%PDF-" and "%%EOF" passed. It must now open in PdfPig, the parser bookFido already embeds, and
+            // have a page. An encrypted PDF is a state of its own: complete and kept, its contents not checked, and logged.
+            try
+            {
+                using (PdfDocument oPdf = PdfDocument.Open(sPath))
+                {
+                    if (oPdf.NumberOfPages < 1) return "it opens as a PDF but has no pages";
+                }
+            }
+            catch (UglyToad.PdfPig.Exceptions.PdfDocumentEncryptedException)
+            {
+                log(Path.GetFileName(sPath) + " is an encrypted PDF: it is complete and kept, but its contents could not be checked");
+            }
+            catch (Exception oException)
+            {
+                return "it is not a readable PDF (" + oException.Message + ")";
+            }
             return "";
         }
         catch (Exception oException) { return oException.Message; }
@@ -1244,9 +1262,12 @@ class bookFido
             string sProblem = pdfProblem(sCandidate, 0);
             if (sProblem == "")
             {
-                log("Adopted " + Path.GetFileName(sCandidate) + ", a complete PDF from before the companion record, for " + sBookKey);
-                bExists = true;
-                return sCandidate;
+                // NO FILE IS CLAIMED WITHOUT EVIDENCE (14 October 2026, from a second audit by another AI): a complete PDF
+                // named for the title, with no companion record, was adopted for whichever book came, so another book's
+                // file could be taken for this one. Nothing in such a file shows which book it belongs to, so it is left as
+                // it is and the next free name is used; the companion is downloaded once more and recorded from then on.
+                log("Left " + Path.GetFileName(sCandidate) + " as it is and chose another name: it has no companion record, so nothing shows it belongs to " + sBookKey);
+                continue;
             }
             log("Left " + Path.GetFileName(sCandidate) + " as it is and chose another name, because " + sProblem);
         }

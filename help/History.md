@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- a PDF is read, not only recognized
+
+- **A companion PDF must open in PdfPig and have a page.** A short file holding only a PDF's first and last markers passed as complete. bookFido now opens it with the PDF parser it already embeds; an encrypted PDF is kept, logged as one whose contents could not be checked (from a second audit by another AI).
+- **An unrecorded PDF named for the title is no longer adopted** for a book, since nothing in it shows which book it belongs to; the next free name is used, and the file is recorded from then on.
+
 ## 14 October 2026 -- the developer guide's kit path
 
 - **The developer guide names the kit's classes where they are,** in C:\HomerDev\exec\CSharp; it still named C:\HomerDev\CSharp, a folder the kit no longer has (from an audit by another AI).

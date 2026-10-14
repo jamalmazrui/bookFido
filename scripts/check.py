@@ -75,7 +75,17 @@ import traceback
 # kind.py, which it imports, so their checks ran against an old kind.py and quietly skipped the layout and
 # installer findings ("kind.py has no standard folders", 9 October 2026). When the kit is on this computer, its
 # scripts folder comes first; an app's own copy is used only when there is no kit.
-for _sKitScripts in [os.path.join(os.environ.get("HomerDev", ""), "scripts"), r"C:\HomerDev\scripts"]:
+# The development kit first (13 October 2026): beside or above the project, then C:\HomerDev; the HomerDev variable,
+# which names the installed kit and lags it, last.
+_lsKitPlaces = []
+_sUp = os.getcwd()
+while True:
+    _lsKitPlaces.append(os.path.join(_sUp, "HomerDev", "scripts"))
+    if os.path.basename(_sUp).lower() == "homerdev": _lsKitPlaces.append(os.path.join(_sUp, "scripts"))
+    if os.path.dirname(_sUp) == _sUp: break
+    _sUp = os.path.dirname(_sUp)
+_lsKitPlaces += [r"C:\HomerDev\scripts", os.path.join(os.environ.get("HomerDev", ""), "scripts")]
+for _sKitScripts in _lsKitPlaces:
     if _sKitScripts.strip("\\/") and os.path.isfile(os.path.join(_sKitScripts, "kind.py")) \
             and os.path.abspath(_sKitScripts) != os.path.dirname(os.path.abspath(__file__)):
         sys.path.insert(0, os.path.abspath(_sKitScripts))
@@ -1506,6 +1516,13 @@ def main():
     if bReusable and oCache.isCurrent("check pass", sPrint, []):
         sWhen = oCache.d["jobs"]["check pass"].get("when", "?")
         finding("reused", "pass", "%s passed this check at %s with exactly these files (fingerprint %s); not run again. check --fresh runs it in full" % (appName(), sWhen, sPrint[:12]))
+        # WHAT THE REUSED RUN DID NOT CHECK STILL WAS NOT CHECKED (13 October 2026, from an audit). Its skips are restored
+        # with their reasons; a pass recorded before findings were kept says its coverage is unknown.
+        lsKept = oCache.d["jobs"]["check pass"].get("findings")
+        if lsKept is None: finding("original coverage", "skip", "this pass was recorded before findings were kept, so which checks it skipped is not known; check --fresh runs every check")
+        else:
+            for sKeptName, sKeptVerdict, sKeptEvidence in lsKept:
+                if sKeptVerdict == "skip": finding(sKeptName, "skip", sKeptEvidence + " (in the run reused here)")
         sReport = writeReport()
         if not dArguments.quiet:
             sayLine("%s passed this check at %s, and none of its files has changed since; not run again." % (appName(), sWhen))
@@ -1572,7 +1589,7 @@ def main():
             # checks was recorded, but a passing check runs the app's acceptance build, which rewrites the program, the
             # installer and generated pages; so release's check, a minute after push's, found "its inputs changed" and
             # built DbDo a third time. The files as they stand after a pass are the ones that passed.
-            oCache.record("check pass", oCache.fingerprint([sRoot], [sKind, platform.python_version()]), [])
+            oCache.record("check pass", oCache.fingerprint([sRoot], [sKind, platform.python_version()]), [], lsFindings)
     logLine("check end")
     return 1 if iFailed else 0
 

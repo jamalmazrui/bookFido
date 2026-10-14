@@ -209,6 +209,10 @@ class bookFido
     [DllImport("user32.dll")]
     static extern uint GetWindowThreadProcessId(IntPtr hWindow, IntPtr hProcessId);
 
+    // The same function, asked for the process that owns the window.
+    [DllImport("user32.dll", EntryPoint = "GetWindowThreadProcessId")]
+    static extern uint getWindowProcessId(IntPtr hWindow, out uint iProcessId);
+
     [DllImport("user32.dll")]
     static extern bool AttachThreadInput(uint iAttachThread, uint iAttachToThread, bool bAttach);
 
@@ -3967,10 +3971,43 @@ class bookFido
     // Shows a message box for about iMessageBoxMs milliseconds with the base
     // file name as its title, which JAWS speaks automatically.  Uses the
     // long-stable but undocumented MessageBoxTimeoutW function in user32.
+    //
+    // ONLY WHEN YOU ARE WATCHING (14 October 2026). The box fights for focus,
+    // because a screen reader speaks only a window that is truly activated,
+    // and a run takes hours: every box pulled the cursor out of whatever you
+    // were doing in another program. Now the box is shown only while bookFido
+    // or the Edge it drives is in front. Otherwise the same words are spoken
+    // through the shared Homer speech class, which reaches JAWS, NVDA or
+    // Narrator without touching focus, as separate utterances.
     static void showTimedMessageBox(string sTitle)
     {
         log("Announcing: " + sTitle + (sProgressText != "" ? " (" + sProgressText + ")" : ""));
-        showActivatedTimedBox(sTitle);
+        if (watchingRun())
+        {
+            showActivatedTimedBox(sTitle);
+            return;
+        }
+        log("Another program is in front, so this is spoken without taking focus");
+        if (sProgressText != "") Homer.Say.say(sTitle, sProgressText);
+        else Homer.Say.say(sTitle);
+    }
+
+    // True when the window in front belongs to bookFido itself or to the
+    // Edge it launched; also true when there is no window in front to
+    // disturb, as at the start of a run.
+    static bool watchingRun()
+    {
+        IntPtr hWindow;
+        uint iProcessId;
+
+        hWindow = GetForegroundWindow();
+        if (hWindow == IntPtr.Zero) return true;
+        iProcessId = 0;
+        getWindowProcessId(hWindow, out iProcessId);
+        if (iProcessId == 0) return true;
+        if (iProcessId == (uint) Process.GetCurrentProcess().Id) return true;
+        try { if (oEdgeProcess != null && !oEdgeProcess.HasExited && iProcessId == (uint) oEdgeProcess.Id) return true; } catch (Exception) { }
+        return false;
     }
 
     // Shows the timed message box from a helper thread and, from this

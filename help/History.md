@@ -6,6 +6,14 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- progress you hear without losing your place
+
+- **Progress no longer pulls you out of another program.** Each announcement was a message box that fought for focus, since a screen reader speaks only a window that is truly active, and a run takes hours, so every box took the cursor from whatever you were doing. Now the box is shown only while bookFido or the Edge it drives is in front. When another program is in front, the same words are spoken through the shared Homer speech class, which reaches JAWS, NVDA or Narrator without touching focus, and the log says which way each announcement went.
+## 14 October 2026 -- contents lists, and plainer guides
+
+- **Every help page has a contents list.** The build ran Pandoc without --toc, so a long guide had no list of its sections. Pages are now built with one, and a page that lacks one is built again once to gain it.
+- **The user guide reads at grade 8.3, down from 9.6,** with every fact kept; it now also names bookFido-companions.txt, the record of which book each companion PDF belongs to.
+
 ## 14 October 2026 -- the announcement in plainer words
 
 - **Announce.md now reads at grade 8.2, down from 9.3,** inside the ninth-grade target for documents shared publicly. Long sentences were split and dense phrases put plainly; every fact, key and link is kept, and first-person passages keep their author's own words. The section about the companion tools reads the same in each announcement that carries it, with the tools' hotkeys in alphabetical order.

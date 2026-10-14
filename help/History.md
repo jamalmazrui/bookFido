@@ -6,6 +6,10 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- the developer guide's kit path
+
+- **The developer guide names the kit's classes where they are,** in C:\HomerDev\exec\CSharp; it still named C:\HomerDev\CSharp, a folder the kit no longer has (from an audit by another AI).
+
 ## 14 October 2026 -- progress you hear without losing your place
 
 - **Progress no longer pulls you out of another program.** Each announcement was a message box that fought for focus, since a screen reader speaks only a window that is truly active, and a run takes hours, so every box took the cursor from whatever you were doing. Now the box is shown only while bookFido or the Edge it drives is in front. When another program is in front, the same words are spoken through the shared Homer speech class, which reaches JAWS, NVDA or Narrator without touching focus, and the log says which way each announcement went.

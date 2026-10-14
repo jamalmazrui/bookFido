@@ -35,7 +35,7 @@ Try the fresh build with `exec\bookFido.exe`.
 
 The build finds the Roslyn C# compiler with `vswhere`, or installs the free Visual Studio Build Tools with winget; the Framework's own `csc.exe` stops at C# 5 and cannot compile the kit. `bookFido.cs` itself is still written in C# 5 syntax.
 
-bookFido compiles eight of the kit's classes straight from `C:\HomerDev\CSharp`: Elevate, Inix, Lbc, Log, Paths, Say, Util and Web. The copies of `Lbc.cs` and `Say.cs` that bookFido used to carry are deleted by the build once the kit's are there. Lbc needs Elevate (its Help box offers the update), Inix, Log, Paths, Say and Util; Elevate needs Web.
+bookFido compiles eight of the kit's classes straight from `C:\HomerDev\exec\CSharp`: Elevate, Inix, Lbc, Log, Paths, Say, Util and Web. The copies of `Lbc.cs` and `Say.cs` that bookFido used to carry are deleted by the build once the kit's are there. Lbc needs Elevate (its Help box offers the update), Inix, Log, Paths, Say and Util; Elevate needs Web.
 
 - `Log.start("bookFido")` opens the session log first thing in `Main`; bookFido's own `log()` writes every line through `Log.line`, after replacing the user-profile path with `%USERPROFILE%`.
 - `Paths.data()` is `dataDir()`.

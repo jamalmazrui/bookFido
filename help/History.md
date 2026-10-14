@@ -6,6 +6,10 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- started as you
+
+- **Setup starts bookFido as you,** not with the installer's administrator rights. Its comment said starting through cmd did that; it did not (from an audit by another AI).
+
 ## 12 October 2026 -- Camel Type constants, and tools before the decision
 
 - **bookFido's constants are Camel Type's**, without the obsolete c_ prefix.

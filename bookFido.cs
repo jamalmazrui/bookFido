@@ -1129,7 +1129,7 @@ class bookFido
         int iStatus;
         string sAlternateUrl, sDirectUrl, sModernAsin, sOldAsin;
 
-        iStatus = attemptDownload(sUrl, sBookTitle, sCookieHeader, sDownloadDir);
+        iStatus = attemptDownload(sUrl, sBookTitle, sCookieHeader, sDownloadDir, asinFromUrl(sUrl));
         if (iStatus == iStatusDownloaded || iStatus == iStatusSkipped) { dPdfNames[asinFromUrl(sUrl)] = sLastSavedName; return; }
         if (iStatus == iStatusFailedHtml)
         {
@@ -1137,7 +1137,7 @@ class bookFido
             if (sDirectUrl != "")
             {
                 log("The failure page contains a direct PDF link, so trying it: " + sDirectUrl);
-                iStatus = attemptDownload(sDirectUrl, sBookTitle, sCookieHeader, sDownloadDir);
+                iStatus = attemptDownload(sDirectUrl, sBookTitle, sCookieHeader, sDownloadDir, asinFromUrl(sUrl));
                 if (iStatus == iStatusDownloaded || iStatus == iStatusSkipped) { dPdfNames[asinFromUrl(sUrl)] = sLastSavedName; return; }
             }
             sOldAsin = asinFromUrl(sUrl);
@@ -1146,13 +1146,107 @@ class bookFido
             {
                 sAlternateUrl = "https://www.audible.com/companion-file/" + sModernAsin;
                 log("Trying the newer asin naming for this title: " + sAlternateUrl);
-                iStatus = attemptDownload(sAlternateUrl, sBookTitle, sCookieHeader, sDownloadDir);
+                iStatus = attemptDownload(sAlternateUrl, sBookTitle, sCookieHeader, sDownloadDir, asinFromUrl(sUrl));
                 if (iStatus == iStatusDownloaded || iStatus == iStatusSkipped) { dPdfNames[asinFromUrl(sUrl)] = sLastSavedName; return; }
             }
         }
         lFailed.Add(sUrl);
         dFailedTitles[sUrl] = sBookTitle;
         dPdfNames[asinFromUrl(sUrl)] = "";
+    }
+
+    // A COMPANION FILE IS KNOWN BY ITS BOOK, NOT ITS NAME (14 October 2026, from an audit by another
+    // AI). A file named for the title was taken as the book's companion whenever it existed -- a
+    // different book with the same title, a partial file, a file placed by hand -- and a file under the
+    // server's name was renamed into it on its name alone. Each download folder now keeps one record,
+    // bookFido-companions.txt, of which book each companion file belongs to (its asin), the address it
+    // came from, its size and fingerprint. One record per folder rather than one beside each PDF, so a
+    // book folder heard file by file is not doubled.
+    const string sCompanionRecordName = "bookFido-companions.txt";
+
+    // { file name: [asin, address, bytes, sha256, date] } from a folder's record.
+    static Dictionary<string, string[]> readCompanions(string sDownloadDir)
+    {
+        Dictionary<string, string[]> dCompanions = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        string sRecord = Path.Combine(sDownloadDir, sCompanionRecordName);
+        if (!File.Exists(sRecord)) return dCompanions;
+        try
+        {
+            foreach (string sLine in File.ReadAllLines(sRecord))
+            {
+                string[] aFields = sLine.Split('\t');
+                if (aFields.Length >= 2 && !sLine.StartsWith("#")) dCompanions[aFields[0]] = aFields.Skip(1).ToArray();
+            }
+        }
+        catch (Exception oException) { log("Could not read " + sRecord + ": " + oException.Message); }
+        return dCompanions;
+    }
+
+    static void recordCompanion(string sDownloadDir, string sPath, string sBookKey, string sUrl)
+    {
+        Dictionary<string, string[]> dCompanions = readCompanions(sDownloadDir);
+        string sSha = "";
+        try { using (var oSha = System.Security.Cryptography.SHA256.Create()) using (FileStream fIn = File.OpenRead(sPath)) sSha = BitConverter.ToString(oSha.ComputeHash(fIn)).Replace("-", "").ToLower(); } catch { }
+        dCompanions[Path.GetFileName(sPath)] = new string[] { sBookKey, sUrl, new FileInfo(sPath).Length.ToString(), sSha, DateTime.Now.ToString("yyyy-MM-dd HH:mm") };
+        List<string> lLines = new List<string>();
+        lLines.Add("# bookFido's record of which book each companion file belongs to: file name, asin, address, bytes, sha256, date. Tab separated.");
+        foreach (KeyValuePair<string, string[]> oPair in dCompanions.OrderBy(o => o.Key, StringComparer.OrdinalIgnoreCase))
+            lLines.Add(oPair.Key + "\t" + string.Join("\t", oPair.Value));
+        try { File.WriteAllLines(Path.Combine(sDownloadDir, sCompanionRecordName), lLines, new UTF8Encoding(true)); }
+        catch (Exception oException) { log("Could not write the companion record in " + sDownloadDir + ": " + oException.Message); }
+    }
+
+    // A COMPLETE PDF, NOT ONLY ITS FIRST FIVE BYTES (14 October 2026, from an audit by another AI): a
+    // truncated transfer begins as every PDF does. It must also end with PDF's end marker, and match the
+    // length the server announced when it announced one. "" when complete; otherwise why not.
+    static string pdfProblem(string sPath, long iExpectedBytes)
+    {
+        try
+        {
+            FileInfo oInfo = new FileInfo(sPath);
+            if (!oInfo.Exists) return "missing";
+            if (iExpectedBytes > 0 && oInfo.Length != iExpectedBytes) return oInfo.Length + " bytes arrived of " + iExpectedBytes;
+            byte[] abHead = new byte[5];
+            byte[] abTail = new byte[(int) Math.Min(2048, oInfo.Length)];
+            using (FileStream fIn = File.OpenRead(sPath))
+            {
+                if (fIn.Read(abHead, 0, 5) < 5 || Encoding.ASCII.GetString(abHead) != "%PDF-") return "it does not begin as a PDF does";
+                fIn.Seek(-abTail.Length, SeekOrigin.End);
+                fIn.Read(abTail, 0, abTail.Length);
+            }
+            if (Encoding.ASCII.GetString(abTail).IndexOf("%%EOF", StringComparison.Ordinal) < 0) return "it does not end as a PDF does, so it is probably cut short";
+            return "";
+        }
+        catch (Exception oException) { return oException.Message; }
+    }
+
+    // The name this book's companion has, or should take: an existing file recorded for this book, or an
+    // unrecorded complete PDF named for the title (a file from before the record, adopted), or else the
+    // first free "Title.pdf", "Title (2).pdf" and so on. bExists says whether the file is already there.
+    static string companionPath(string sDownloadDir, string sRoot, string sBookKey, Dictionary<string, string[]> dCompanions, out bool bExists)
+    {
+        bExists = false;
+        foreach (KeyValuePair<string, string[]> oPair in dCompanions)
+        {
+            string sKnown = Path.Combine(sDownloadDir, oPair.Key);
+            if (oPair.Value[0] == sBookKey && sBookKey != "" && File.Exists(sKnown) && pdfProblem(sKnown, 0) == "") { bExists = true; return sKnown; }
+        }
+        for (int iNumber = 1; iNumber < 1000; iNumber++)
+        {
+            string sCandidate = Path.Combine(sDownloadDir, sRoot + (iNumber == 1 ? "" : " (" + iNumber + ")") + ".pdf");
+            if (!File.Exists(sCandidate)) return sCandidate;
+            string[] aKnown;
+            if (dCompanions.TryGetValue(Path.GetFileName(sCandidate), out aKnown)) continue;
+            string sProblem = pdfProblem(sCandidate, 0);
+            if (sProblem == "")
+            {
+                log("Adopted " + Path.GetFileName(sCandidate) + ", a complete PDF from before the companion record, for " + sBookKey);
+                bExists = true;
+                return sCandidate;
+            }
+            log("Left " + Path.GetFileName(sCandidate) + " as it is and chose another name, because " + sProblem);
+        }
+        throw new IOException("More than 999 files are named for the title " + sRoot);
     }
 
     // Makes one direct HTTP attempt at a url and returns a status constant.
@@ -1175,9 +1269,12 @@ class bookFido
             log("Not sending Audible's cookies to " + httpRequest.RequestUri.Host + ", which is not an Audible site");
     }
 
-    static int attemptDownload(string sUrl, string sBookTitle, string sCookieHeader, string sDownloadDir)
+    static int attemptDownload(string sUrl, string sBookTitle, string sCookieHeader, string sDownloadDir, string sBookKey)
     {
-        string sContentType, sDiagnosticPath, sFriendlyPath, sMetaPath, sMetaRoot, sRoot, sServerName, sServerPath, sTargetPath;
+        bool bCompanionExists, bServerOurs;
+        Dictionary<string, string[]> dCompanions;
+        string sContentType, sDiagnosticPath, sFriendlyPath, sMetaPath, sMetaRoot, sPdfProblem, sRoot, sServerName, sServerPath, sTargetPath;
+        string[] aServerKnown;
         HttpWebRequest httpRequest;
         StreamReader fReader;
 
@@ -1200,24 +1297,43 @@ class bookFido
                 log("Response url: " + httpResponse.ResponseUri.ToString() + ", content type: " + sContentType + ", server file name: " + sServerName);
                 if (sContentType.Contains("html"))
                 {
+                    // READ ONLY AS MUCH AS IS KEPT (14 October 2026, from an audit by another AI): the
+                    // whole page was read and then cut to 500,000 characters, so a huge or endless page
+                    // was read in full first.
                     fReader = new StreamReader(httpResponse.GetResponseStream());
-                    sLastFailureBody = fReader.ReadToEnd();
+                    char[] acBody = new char[500000];
+                    int iRead = 0, iGot;
+                    while (iRead < acBody.Length && (iGot = fReader.Read(acBody, iRead, acBody.Length - iRead)) > 0) iRead += iGot;
                     fReader.Close();
-                    if (sLastFailureBody.Length > 500000) sLastFailureBody = sLastFailureBody.Substring(0, 500000);
+                    sLastFailureBody = new string(acBody, 0, iRead);
                     sDiagnosticPath = saveFailureBody(sLastFailureBody, sUrl);
                     log("Failed, because the response was a web page rather than a file: " + sUrl);
                     if (sDiagnosticPath != "") log("Saved the web page body for diagnosis: " + sDiagnosticPath);
                     return iStatusFailedHtml;
                 }
-                if (sFriendlyPath != "" && File.Exists(sFriendlyPath))
+                dCompanions = readCompanions(sDownloadDir);
+                bCompanionExists = false;
+                if (sRoot != "") sFriendlyPath = companionPath(sDownloadDir, sRoot, sBookKey, dCompanions, out bCompanionExists);
+                if (sFriendlyPath != "" && bCompanionExists)
                 {
+                    if (!dCompanions.ContainsKey(Path.GetFileName(sFriendlyPath))) recordCompanion(sDownloadDir, sFriendlyPath, sBookKey, sUrl);
                     log("Skipped, because the file already exists: " + sFriendlyPath);
                     lSkipped.Add(Path.GetFileName(sFriendlyPath));
                     sLastSavedName = Path.GetFileName(sFriendlyPath);
                     showTimedMessageBox(foundFileAnnouncement("Found", Path.GetFileName(sFriendlyPath), ensureHtmVersion(sFriendlyPath)));
                     return iStatusSkipped;
                 }
-                if (File.Exists(sServerPath))
+                // A FILE UNDER THE SERVER'S NAME IS THIS BOOK'S ONLY IF THE RECORD SAYS SO, OR ITS NAME CARRIES
+                // THIS BOOK'S ASIN, and it is a complete PDF; two books can share a server file name.
+                bServerOurs = File.Exists(sServerPath) && pdfProblem(sServerPath, 0) == "" && sBookKey != "" &&
+                    (dCompanions.TryGetValue(sServerName, out aServerKnown) ? aServerKnown[0] == sBookKey : sServerName.IndexOf(sBookKey, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (File.Exists(sServerPath) && !bServerOurs)
+                {
+                    log("Left " + sServerName + " as it is: nothing shows it is this book's companion");
+                    // With no title to name it by, this book's file takes the next free server-style name.
+                    if (sFriendlyPath == "") sServerPath = uniquePdfPath(sDownloadDir, Path.GetFileNameWithoutExtension(sServerName));
+                }
+                if (bServerOurs)
                 {
                     if (sFriendlyPath == "")
                     {
@@ -1228,6 +1344,7 @@ class bookFido
                         return iStatusSkipped;
                     }
                     File.Move(sServerPath, sFriendlyPath);
+                    recordCompanion(sDownloadDir, sFriendlyPath, sBookKey, sUrl);
                     log("Renamed the earlier download " + sServerName + " to " + Path.GetFileName(sFriendlyPath));
                     lSkipped.Add(sServerName + " renamed to " + Path.GetFileName(sFriendlyPath));
                     sLastSavedName = Path.GetFileName(sFriendlyPath);
@@ -1247,6 +1364,13 @@ class bookFido
                     byte[] abHead = new byte[5];
                     int iHead;
                     using (FileStream fIn = File.OpenRead(sPartPath)) { iHead = fIn.Read(abHead, 0, 5); }
+                    sPdfProblem = sTargetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && iHead == 5 && Encoding.ASCII.GetString(abHead) == "%PDF-"
+                        ? pdfProblem(sPartPath, httpResponse.ContentLength) : "";
+                    if (sPdfProblem != "")
+                    {
+                        log("Failed, because the PDF is incomplete (" + sPdfProblem + "): " + sUrl);
+                        return iStatusFailed;
+                    }
                     if (sTargetPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && (iHead < 5 || Encoding.ASCII.GetString(abHead) != "%PDF-"))
                     {
                         log("Failed, because the response was not a PDF (" + iHead + " bytes began it): " + sUrl);
@@ -1270,6 +1394,7 @@ class bookFido
                     }
                 }
                 log("Downloaded: " + sTargetPath);
+                recordCompanion(sDownloadDir, sTargetPath, sBookKey, sUrl);
                 lDownloaded.Add(Path.GetFileName(sTargetPath));
                 sLastSavedName = Path.GetFileName(sTargetPath);
                 ensureHtmVersion(sTargetPath);

@@ -6,6 +6,12 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- each companion PDF known by its book
+
+- **A file named for the title is no longer taken on trust.** Any "Title.pdf" already in the folder was treated as the book's companion -- another edition with the same title, a partial file, a file put there by hand -- and a file under the server's name was renamed into it on its name alone. Each download folder now keeps one record, bookFido-companions.txt, of which book each companion belongs to (its asin), where it came from, its size and fingerprint. Another edition with the same title gets "Title (2).pdf". A complete PDF from before the record is adopted and recorded, so your library is not downloaded again; an incomplete one is left as it is, never deleted, and the book's file takes the next free name. A file under the server's name is claimed only when the record says it is this book's, or its name carries this book's asin (from an audit by another AI).
+- **A PDF must be complete, not only begin like one.** It must also end with PDF's end marker and match the length the server announced, so a transfer cut short is refused rather than kept.
+- **A web page sent instead of a PDF is read only up to the 500,000 characters kept,** rather than read in full and then cut.
+
 ## 14 October 2026 -- started as you
 
 - **Setup starts bookFido as you,** not with the installer's administrator rights. Its comment said starting through cmd did that; it did not (from an audit by another AI).

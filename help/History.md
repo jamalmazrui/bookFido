@@ -6,6 +6,10 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 14 October 2026 -- the newest Pandoc for the help pages
+
+- **The help pages are made by the newest Pandoc, not the first on the PATH.** The build took the first pandoc on the PATH, which was Pandoc 2.19 in C:\bin, while Pandoc 3.12.1 was installed in Program Files. It now asks the kit's newest.ps1, as the kit's app template has done since kit 1.56.0, and the log names every copy found and its version.
+
 ## 14 October 2026 -- each companion PDF known by its book
 
 - **A file named for the title is no longer taken on trust.** Any "Title.pdf" already in the folder was treated as the book's companion -- another edition with the same title, a partial file, a file put there by hand -- and a file under the server's name was renamed into it on its name alone. Each download folder now keeps one record, bookFido-companions.txt, of which book each companion belongs to (its asin), where it came from, its size and fingerprint. Another edition with the same title gets "Title (2).pdf". A complete PDF from before the record is adopted and recorded, so your library is not downloaded again; an incomplete one is left as it is, never deleted, and the book's file takes the next free name. A file under the server's name is claimed only when the record says it is this book's, or its name carries this book's asin (from an audit by another AI).

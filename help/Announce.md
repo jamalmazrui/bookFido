@@ -5,7 +5,7 @@ author: "Jamal Mazrui"
 
 # bookFido, built on the Homer Development Kit
 
-bookFido catalogs your book libraries -- Audible, Bookshare, Goodreads, Kindle and NLS -- into one accessible catalog, a workbook and a database. Get it from the [bookFido releases page](https://github.com/jamalmazrui/bookFido/releases).
+bookFido brings your book libraries together in one accessible catalog, as a workbook and a database. It reads Audible, Bookshare, Goodreads, Kindle and NLS. Get it from the [bookFido releases page](https://github.com/jamalmazrui/bookFido/releases).
 
 ## What is new
 
@@ -18,4 +18,4 @@ The full list of changes is in History.
 
 ## The companion tools
 
-bookFido is part of the Homer Tools series, beside [urlFido](https://github.com/jamalmazrui/urlFido), which downloads files from web pages by extension, and [urlCheck](https://github.com/JamalMazrui/urlCheck), which checks web pages for accessibility.
+bookFido is part of the Homer Tools series. Its companions are [urlFido](https://github.com/jamalmazrui/urlFido), which downloads files of the types you choose from web pages, and [urlCheck](https://github.com/JamalMazrui/urlCheck), which checks web pages for accessibility.

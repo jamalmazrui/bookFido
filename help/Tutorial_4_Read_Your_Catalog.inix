@@ -111,7 +111,7 @@ Key=
 
 [step]
 
-Say=Each book's heading is level three under its letter, so the reader's heading keys move book by book, and Insert plus F6 lists them all.
+Say=Each book's heading is level three under its letter, so the reader's heading keys move book by book, and the reader's headings list, Insert plus F6 in some readers and part of the Insert plus F7 list in others, gathers them all.
 Key=Insert+F6
 Hear=Headings list
 Note=Confirm the wording with a live run: buildTutorials -live.

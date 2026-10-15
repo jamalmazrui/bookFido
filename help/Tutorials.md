@@ -24,7 +24,7 @@ What bookFido is, what it gathers, and the ten walks that teach it.
 
 ### Step 1
 
-Welcome. This is the first of ten short walks through bookFido. I am the host; the other voice is the screen reader, speaking as it would on your own computer.
+Welcome. This is the first of ten short walks through bookFido. I am the host; the other voice is the screen reader. It is a simulation of what a screen reader says, so your own reader's words may differ a little.
 
 ### Step 2: Insert+Up Arrow
 
@@ -52,7 +52,7 @@ Screen reader:
 
 ### Step 5
 
-If you set your screen reader to use Caps Lock in place of Insert, Caps Lock works the same way for all three.
+On a laptop keyboard, Caps Lock usually stands in for Insert, though in some laptop layouts the line command moves to a letter, such as Caps Lock plus L. And if speech goes by before you catch it, your reader can replay it: Insert plus X in some readers, a speech history in others.
 
 ### Step 6
 
@@ -728,7 +728,7 @@ Before buying a book, a search of this one page answers whether you have it alre
 
 ### Step 18: Insert+F6
 
-Each book's heading is level three under its letter, so the reader's heading keys move book by book, and Insert plus F6 lists them all.
+Each book's heading is level three under its letter, so the reader's heading keys move book by book, and the reader's headings list, Insert plus F6 in some readers and part of the Insert plus F7 list in others, gathers them all.
 
 Screen reader:
 

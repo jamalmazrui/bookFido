@@ -3607,7 +3607,8 @@ class bookFido
     // an Image descriptions section at the end.
     // THE MARK OF THIS CONVERTER (11 October 2026): an .htm bookFido made before it, without this mark, is made
     // again once, so the better reading reaches the files already there; a file anyone else made is left alone.
-    const string sHtmGenerator = "bookFido companion converter 2";
+    // 3 (20 October 2026): made by the Homer kit's conversion. A page marked 2 or earlier is made again once.
+    const string sHtmGenerator = "bookFido companion converter 3";
 
     static bool letterIsBold(Letter oLetter)
     {
@@ -3655,144 +3656,25 @@ class bookFido
         return sHead.Contains("<meta charset=\"utf-8\">\r\n<title>") && sHead.Contains("</head>\r\n<body>\r\n<main>\r\n<h1>");
     }
 
+    // convertPdfToHtm: a companion PDF as a web page, BY THE HOMER KIT'S ONE CONVERSION (20 October
+    // 2026, Jamal's rule that every app converts one way). bookFido had its own readers -- PdfStructure.cs
+    // for a tagged PDF, layout reading here for the rest -- which became the kit's PdfReader. The kit now
+    // reads the PDF and writes the page, through Pandoc when it is installed and through its own writer
+    // when it is not, so a computer without Pandoc still gets its pages. bookFido only marks the page as
+    // its own, so isOlderBookFidoHtm knows it is current. A failure throws, as before, with the kit's reason.
+    // ROLLBACK: the old readers are in notes\retired\pdfReaders and in the repository's history.
     static void convertPdfToHtm(string sPdfPath, string sHtmPath)
     {
-        bool bBoldHeadings;
-        double nBlockSize, nBodySize, nCount, nSize;
-        int iBoldLetters, iBoldLevel, iLastLevel, iLetters, iLevel;
-        string sBlockText, sCarry, sDocTitle, sHay, sLang, sNormalized, sTagged, sTaggedHow;
-        Dictionary<double, double> dSizeCounts;
-        Dictionary<double, int> dTierLevels;
-        Dictionary<string, int> dRepeatCounts;
-        HashSet<string> setOnThisPage;
-        List<double> lHeadingSizes;
-        List<string> lAltTexts;
-        List<TextBlock> lPageBlocks;
-        List<List<TextBlock>> lAllPages;
-        StringBuilder sbHtml;
+        string sError, sPage;
 
-        dSizeCounts = new Dictionary<double, double>();
-        lAllPages = new List<List<TextBlock>>();
-        iBoldLetters = 0;
-        iLetters = 0;
-        using (PdfDocument pdfDocument = PdfDocument.Open(sPdfPath))
+        if (!Conversion.convert(sPdfPath, sHtmPath, out sError)) throw new IOException(sError == "" ? "the conversion failed" : sError);
+        sPage = File.ReadAllText(sHtmPath, Encoding.UTF8);
+        int iHead = sPage.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+        if (iHead >= 0 && !sPage.Contains(sHtmGenerator))
         {
-            foreach (Page pdfPage in pdfDocument.GetPages())
-            {
-                foreach (Letter pdfLetter in pdfPage.Letters)
-                {
-                    nSize = Math.Round(pdfLetter.PointSize * 2.0) / 2.0;
-                    iLetters = iLetters + 1;
-                    if (letterIsBold(pdfLetter)) iBoldLetters = iBoldLetters + 1;
-                    if (!dSizeCounts.ContainsKey(nSize)) dSizeCounts[nSize] = 0;
-                    dSizeCounts[nSize] = dSizeCounts[nSize] + 1;
-                }
-                lPageBlocks = new List<TextBlock>(DocstrumBoundingBoxes.Instance.GetBlocks(NearestNeighbourWordExtractor.Instance.GetWords(pdfPage.Letters)));
-                // IN READING ORDER (11 October 2026), as HomerScribe reads a page: PdfPig's own detector, so a
-                // two-column page reads down each column rather than across the gutter. Top-to-bottom,
-                // left-to-right is kept for a page the detector cannot order.
-                try { lPageBlocks = new List<TextBlock>(UnsupervisedReadingOrderDetector.Instance.Get(lPageBlocks)); }
-                catch (Exception) { lPageBlocks.Sort(compareTextBlocks); }
-                lAllPages.Add(lPageBlocks);
-            }
+            sPage = sPage.Insert(iHead + "<head>".Length, "\r\n<meta name=\"generator\" content=\"" + sHtmGenerator + "\">");
+            File.WriteAllText(sHtmPath, sPage, new UTF8Encoding(true));
         }
-        nBodySize = 0;
-        nCount = 0;
-        foreach (double nOne in dSizeCounts.Keys) { if (dSizeCounts[nOne] > nCount) { nCount = dSizeCounts[nOne]; nBodySize = nOne; } }
-        lHeadingSizes = new List<double>();
-        foreach (double nOne in dSizeCounts.Keys) { if (nOne > nBodySize + 1.0) lHeadingSizes.Add(nOne); }
-        lHeadingSizes.Sort();
-        lHeadingSizes.Reverse();
-        dTierLevels = new Dictionary<double, int>();
-        foreach (double nOne in lHeadingSizes) dTierLevels[nOne] = Math.Min(4, 2 + dTierLevels.Count);
-        // BOLD HEADINGS (11 October 2026): a heading set in body-sized bold type became a paragraph, since only
-        // larger sizes were headings. A short bold block is a heading one level below the size tiers -- unless
-        // much of the document is bold, when bold says nothing.
-        bBoldHeadings = iLetters > 0 && iBoldLetters * 100 < iLetters * 30;
-        iBoldLevel = Math.Min(4, 2 + dTierLevels.Count);
-        // Count how many pages contain each short normalized block text, so
-        // running headers and footers can be dropped as pagination artifacts.
-        dRepeatCounts = new Dictionary<string, int>();
-        foreach (List<TextBlock> lBlocks in lAllPages)
-        {
-            setOnThisPage = new HashSet<string>();
-            foreach (TextBlock textBlock in lBlocks)
-            {
-                sNormalized = normalizedFurniture(joinBlockLines(textBlock));
-                if (sNormalized == "" || setOnThisPage.Contains(sNormalized)) continue;
-                setOnThisPage.Add(sNormalized);
-                if (!dRepeatCounts.ContainsKey(sNormalized)) dRepeatCounts[sNormalized] = 0;
-                dRepeatCounts[sNormalized] = dRepeatCounts[sNormalized] + 1;
-            }
-        }
-        sHay = "";
-        try { sHay = Encoding.GetEncoding(28591).GetString(File.ReadAllBytes(sPdfPath)); }
-        catch (Exception) { }
-        sLang = langFromHay(sHay);
-        if (sLang == "") sLang = "en";
-        sDocTitle = pdfTitleFromHay(sHay);
-        if (cleanRoot(sDocTitle) == "") sDocTitle = Path.GetFileNameWithoutExtension(sPdfPath);
-        sbHtml = new StringBuilder();
-        sbHtml.Append("<!DOCTYPE html>\r\n<html lang=\"" + htmlText(sLang) + "\">\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<meta name=\"generator\" content=\"" + sHtmGenerator + "\">\r\n<title>" + htmlText(sDocTitle) + "</title>\r\n</head>\r\n<body>\r\n<main>\r\n");
-        sbHtml.Append("<h1>" + htmlText(sDocTitle) + "</h1>\r\n");
-        iLastLevel = 1;
-        // A TAGGED PDF SAYS WHAT EACH PIECE IS (11 October 2026): its own headings, lists, tables and figure
-        // descriptions are used when its tags reach most of the text; otherwise the pages are read by layout.
-        sTagged = PdfStructure.bodyHtml(sPdfPath, out sTaggedHow);
-        log("Structure of " + Path.GetFileName(sPdfPath) + ": " + sTaggedHow);
-        if (sTagged != "") sbHtml.Append(sTagged);
-        sCarry = "";
-        if (sTagged == "") foreach (List<TextBlock> lBlocks in lAllPages)
-        {
-            foreach (TextBlock textBlock in lBlocks)
-            {
-                sBlockText = joinBlockLines(textBlock);
-                if (sBlockText == "") continue;
-                if (sBlockText.Length <= 2 && !isNumericOnly(sBlockText) && !isRomanPageMarker(sBlockText))
-                {
-                    // A one- or two-character block is a drop cap or stray
-                    // symbol; carry it into the next block so the sentence
-                    // it opens stays whole.
-                    sCarry = sCarry + sBlockText;
-                    continue;
-                }
-                if (sCarry != "")
-                {
-                    sBlockText = (sCarry.Length == 1 && char.IsLetter(sCarry[0]) && sBlockText.Length > 0 && char.IsLower(sBlockText[0])) ? sCarry + sBlockText : sCarry + " " + sBlockText;
-                    sCarry = "";
-                }
-                sBlockText = collapseDotLeaders(sBlockText);
-                sNormalized = normalizedFurniture(sBlockText);
-                if (isNumericOnly(sBlockText)) continue;
-                if (isRomanPageMarker(sBlockText)) continue;
-                if (sNormalized != "" && dRepeatCounts.ContainsKey(sNormalized) && dRepeatCounts[sNormalized] >= 3) continue;
-                nBlockSize = blockPointSize(textBlock);
-                iLevel = 0;
-                if (dTierLevels.ContainsKey(nBlockSize)) iLevel = dTierLevels[nBlockSize];
-                if (iLevel == 0 && bBoldHeadings && sBlockText.Length <= 120 && textBlock.TextLines.Count <= 2
-                    && !Regex.IsMatch(sBlockText, @"[.,;:]$") && blockIsBold(textBlock)) iLevel = iBoldLevel;
-                if (iLevel > 0 && sBlockText.Length <= 200)
-                {
-                    if (iLevel > iLastLevel + 1) iLevel = iLastLevel + 1;
-                    sbHtml.Append("<h" + iLevel + ">" + htmlText(sBlockText) + "</h" + iLevel + ">\r\n");
-                    iLastLevel = iLevel;
-                    continue;
-                }
-                if (appendListBlock(sbHtml, textBlock)) continue;
-                sbHtml.Append("<p>" + htmlText(sBlockText) + "</p>\r\n");
-            }
-        }
-        // A tagged document's descriptions are already in place, beside their figures.
-        lAltTexts = sTagged == "" ? altTextsFromHay(sHay) : new List<string>();
-        if (lAltTexts.Count > 0)
-        {
-            sbHtml.Append("<h2>Image descriptions</h2>\r\n<p>The PDF contains images with the following alternative text descriptions.</p>\r\n<ul>\r\n");
-            foreach (string sAlt in lAltTexts) sbHtml.Append("<li>" + htmlText(sAlt) + "</li>\r\n");
-            sbHtml.Append("</ul>\r\n");
-            iLastLevel = 2;
-        }
-        sbHtml.Append("</main>\r\n</body>\r\n</html>\r\n");
-        File.WriteAllText(sHtmPath, sbHtml.ToString(), new UTF8Encoding(true));
     }
 
     // Returns true when a block is only digits and whitespace, the shape of a

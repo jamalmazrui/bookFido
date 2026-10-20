@@ -25,7 +25,6 @@ help/Hotkeys.md
 License.htm
 License.md
 LocalFiles.txt
-PdfStructure.cs
 ReadMe.htm
 ReadMe.md
 RepoFiles.txt

@@ -45,9 +45,9 @@ bookFido compiles eight of the kit's classes straight from `C:\HomerDev\exec\CSh
 
 Everything bookFido uses travels inside `bookFido.exe` as a resource, loaded by `resolveEmbeddedAssembly`. The pins, each for a reason:
 
-- **pdfpig 0.1.14.** The official id is plain `pdfpig`; the NuGet id `UglyToad.PdfPig` is an unrelated upload and must never be used.
+- **pdfpig 0.1.16.** The version the Homer kit's PdfReader is built and tested on, in HomerScribe; raised from 0.1.14 on 20 October 2026, when bookFido's companion PDFs moved onto the kit's Conversion (its own PdfStructure.cs and layout reading are in notes\retired\pdfReaders). The official id is plain `pdfpig`; the NuGet id `UglyToad.PdfPig` is an unrelated upload and must never be used.
 - **epplus 4.5.3.3.** The last LGPL release. `lib\net40` is taken.
-- **system.memory 4.6.0.** PdfPig 0.1.14 wants assembly 4.0.2.0; the 4.5.x packages carry only 4.0.1.x, which csc rejects with CS1705.
+- **system.memory 4.6.0.** PdfPig wants assembly 4.0.2.0; the 4.5.x packages carry only 4.0.1.x, which csc rejects with CS1705.
 - **Helpers:** microsoft.bcl.hashcode 6.0.0, system.buffers 4.5.1, system.numerics.vectors 4.5.0, system.runtime.compilerservices.unsafe 6.0.0, system.text.encoding.codepages 4.5.1, system.valuetuple 4.5.0.
 - **The SQLite side:** microsoft.data.sqlite.core 8.0.6 with sqlitepclraw core, provider.e_sqlite3, bundle_e_sqlite3 and lib.e_sqlite3 at 2.1.8. `batteries_v2` is required, because Microsoft.Data.Sqlite looks for it by name. The native `e_sqlite3.dll` is embedded as a plain resource and written out before the first open; the program then calls `SetDllDirectory`, `LoadLibraryW` and `Batteries_V2.Init`.
 

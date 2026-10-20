@@ -123,6 +123,8 @@ Name: "{app}\help"
 ; THE PROGRAM goes in exec. Everything bookFido needs is inside it, including
 ; the SQLite engine, which it writes out the first time it opens its database.
 Source: "exec\{#AppExeName}"; DestDir: "{app}\exec"; Flags: ignoreversion
+; The kit's conversion routes, for the companion PDFs (20 October 2026).
+Source: "exec\conversions.inix"; DestDir: "{app}\exec"; Flags: ignoreversion
 ; ReadMe and License at the top, both forms: Markdown for an editor or a
 ; braille display, HTML for a browser.
 Source: "ReadMe.md"; DestDir: "{app}"; Flags: ignoreversion

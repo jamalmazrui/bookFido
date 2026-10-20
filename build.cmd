@@ -63,7 +63,7 @@ set "progFiles=%ProgramFiles%"
 
 rem ---- SETTINGS: the part an app edits -------------------------------
 rem The oldest kit with everything this build uses.
-set "kitNeeded=1.43.29"
+set "kitNeeded=1.81.0"
 rem The number to start from when version.txt is missing. A newer release
 rem tag, if the repository has one, wins; so does nothing lower than this.
 set "seedVersion=1.2.0"
@@ -73,10 +73,11 @@ set "cscTarget=winexe"
 rem The kit classes the program uses, alphabetical. Lbc needs Elevate (its
 rem Help box offers the update), Log, Paths, Say and Util; Log needs Paths and
 rem Say; Mdi needs KeyMap. Each is compiled from C:\HomerDev\exec\CSharp.
-set "homerModules=Elevate Inix Lbc Log Paths Say Util Web"
+rem The kit's one conversion technique (20 October 2026): Conversion with its PDF reader and Table.
+set "homerModules=Conversion ConversionPdf Elevate Inix Lbc Log Paths PdfReader Say Table Util Web"
 rem The app's own sources beside bookFido.cs, if any, space separated.
 rem PdfStructure.cs reads a tagged PDF's own structure for the companion .htm files (11 October 2026).
-set "appSources=PdfStructure.cs"
+set "appSources="
 rem Files embedded in the program as resources, space separated: a sound, a
 rem native DLL the program extracts itself.
 set "csResources="
@@ -128,6 +129,16 @@ for /f "delims=" %%v in ('ver') do >> "%log%" echo Windows: %%v
 >> "%log%" echo Settings: kitNeeded=!kitNeeded! seedVersion=!seedVersion! cscTarget=!cscTarget! nvdaClient=!nvdaClient!
 >> "%log%" echo Settings: homerModules=!homerModules!
 >> "%log%" echo Settings: appSources=!appSources! csResources=!csResources! nugetPackages=!nugetPackages!
+
+rem ---- the PDF readers the kit replaced, retired (20 October 2026) ---------
+rem bookFido converts its companion PDFs through the kit's Conversion now, whose
+rem PdfReader grew from the same code. PdfStructure.cs is moved into
+rem notes\retired\pdfReaders, never deleted, and logged. ROLLBACK: move it back.
+if exist "PdfStructure.cs" (
+  if not exist "notes\retired\pdfReaders" mkdir "notes\retired\pdfReaders"
+  move /y "PdfStructure.cs" "notes\retired\pdfReaders\PdfStructure.cs" >nul 2>&1
+  >> "%log%" echo Retired: PdfStructure.cs, moved into notes\retired\pdfReaders; the kit's PdfReader replaces it
+)
 >> "%log%" echo Settings: kitTools=!kitTools!
 >> "%log%" echo Settings: useDocs=!useDocs! useInstaller=!useInstaller! useVersionSteps=!useVersionSteps!
 echo Building %app%. The log is %log%
@@ -328,6 +339,16 @@ echo Install the .NET Framework 4.8 targeting pack with the Visual Studio Instal
 goto :failed
 :haveRefs
 
+rem ---- the kit's conversion routes, since bookFido converts (20 October 2026) ----
+if not exist "exec" mkdir "exec"
+if not exist "!homerDev!\exec\conversions.inix" (
+  echo The kit has no exec\conversions.inix. Update HomerDev to !kitNeeded! or later.
+  >> "%log%" echo ERROR: NOT IN THE KIT: exec\conversions.inix
+  goto :failed
+)
+copy /y "!homerDev!\exec\conversions.inix" "exec\conversions.inix" >nul
+>> "%log%" echo Copied conversions.inix from the kit into exec.
+
 rem ---- the kit's classes, and the stale copies they replace ---------------
 set "homerSources="
 for %%M in (!homerModules!) do (
@@ -381,7 +402,8 @@ rem The packages are fetched once into work\nuget; nugetPins.txt there
 rem records the set, so changing a pin below makes the next build fetch again.
 rem
 rem THE PINS, each for a reason (details in help\Developer.md):
-rem   pdfpig 0.1.14 -- the official id; "UglyToad.PdfPig" is an unrelated
+rem   pdfpig 0.1.16 -- the version the kit's PdfReader is built and tested on in
+rem     HomerScribe (raised from 0.1.14 on 20 October 2026); the official id; "UglyToad.PdfPig" is an unrelated
 rem     upload and must never be used
 rem   epplus 4.5.3.3 -- the last LGPL release; lib\net40 is taken
 rem   system.memory 4.6.0 -- PdfPig 0.1.14 wants assembly 4.0.2.0, and the
@@ -411,7 +433,7 @@ if not defined netstd (
 )
 >> "%log%" echo netstandard facade: !netstd!
 set "extraRefs=!extraRefs! /reference:"!netstd!""
-set "pins=pdfpig@0.1.14 epplus@4.5.3.3 microsoft.bcl.hashcode@6.0.0 system.text.encoding.codepages@4.5.1 system.buffers@4.5.1 system.memory@4.6.0 system.numerics.vectors@4.5.0 system.runtime.compilerservices.unsafe@6.0.0 system.valuetuple@4.5.0 microsoft.data.sqlite.core@8.0.6 sqlitepclraw.core@2.1.8 sqlitepclraw.provider.e_sqlite3@2.1.8 sqlitepclraw.bundle_e_sqlite3@2.1.8 sqlitepclraw.lib.e_sqlite3@2.1.8"
+set "pins=pdfpig@0.1.16 epplus@4.5.3.3 microsoft.bcl.hashcode@6.0.0 system.text.encoding.codepages@4.5.1 system.buffers@4.5.1 system.memory@4.6.0 system.numerics.vectors@4.5.0 system.runtime.compilerservices.unsafe@6.0.0 system.valuetuple@4.5.0 microsoft.data.sqlite.core@8.0.6 sqlitepclraw.core@2.1.8 sqlitepclraw.provider.e_sqlite3@2.1.8 sqlitepclraw.bundle_e_sqlite3@2.1.8 sqlitepclraw.lib.e_sqlite3@2.1.8"
 set "pinStamp="
 if exist "work\nuget\nugetPins.txt" set /p pinStamp=<"work\nuget\nugetPins.txt"
 set "pinWant=!pins! layout-net40 sqlite-by-name"

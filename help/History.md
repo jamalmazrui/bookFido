@@ -6,6 +6,13 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 20 October 2026 -- Companion PDFs through the Homer kit
+
+- **Audible's companion PDFs become web pages through the Homer kit's one conversion,** like every Homer app's. bookFido's own PDF readers had become the kit's PdfReader, which reads a tagged PDF's structure and an untagged one's layout. Pages are made through Pandoc when it is installed and through the kit's own writer when it is not, so nothing more is needed on your computer.
+- **Each existing companion page is made again once,** the first time bookFido sees it, so all are made the same way.
+- **PdfPig is version 0.1.16,** the one the kit's reader is built and tested on.
+- **The build needs HomerDev 1.81.0 or later.**
+
 ## 14 October 2026 -- a PDF is read, not only recognized
 
 - **A companion PDF must open in PdfPig and have a page.** A short file holding only a PDF's first and last markers passed as complete. bookFido now opens it with the PDF parser it already embeds; an encrypted PDF is kept, logged as one whose contents could not be checked (from a second audit by another AI).

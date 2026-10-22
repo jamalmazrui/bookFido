@@ -8,6 +8,7 @@ author: "Jamal Mazrui"
 
 ## 20 October 2026 -- Companion PDFs through the Homer kit
 
+- **Recordings and speech, as in every Homer app:** a recording converts to a transcript, and a document to spoken audio, through the Homer kit. The build needs HomerDev 1.87.5 or later.
 - **Web pages in the Homer page form,** as every Homer app makes them: one heading for the title, the page's parts marked for a screen reader, and pictures carried inside the page. The build needs HomerDev 1.87.1 or later.
 - **Audible's companion PDFs become web pages through the Homer kit's one conversion,** like every Homer app's. bookFido's own PDF readers had become the kit's PdfReader, which reads a tagged PDF's structure and an untagged one's layout. Pages are made through Pandoc when it is installed and through the kit's own writer when it is not, so nothing more is needed on your computer.
 - **Each existing companion page is made again once,** the first time bookFido sees it, so all are made the same way.

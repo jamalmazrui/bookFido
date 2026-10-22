@@ -63,7 +63,7 @@ set "progFiles=%ProgramFiles%"
 
 rem ---- SETTINGS: the part an app edits -------------------------------
 rem The oldest kit with everything this build uses.
-set "kitNeeded=1.87.1"
+set "kitNeeded=1.87.5"
 rem The number to start from when version.txt is missing. A newer release
 rem tag, if the repository has one, wins; so does nothing lower than this.
 set "seedVersion=1.2.0"
@@ -74,7 +74,7 @@ rem The kit classes the program uses, alphabetical. Lbc needs Elevate (its
 rem Help box offers the update), Log, Paths, Say and Util; Log needs Paths and
 rem Say; Mdi needs KeyMap. Each is compiled from C:\HomerDev\exec\CSharp.
 rem The kit's one conversion technique (20 October 2026): Conversion with its PDF reader and Table.
-set "homerModules=Conversion ConversionPage ConversionPdf Elevate Inix Lbc Log Paths PdfReader Say Table Util Web"
+set "homerModules=Conversion ConversionMedia ConversionPage ConversionPdf Elevate Inix Lbc Log Media Paths PdfReader Say Table Util Voice Web"
 rem The app's own sources beside bookFido.cs, if any, space separated.
 rem PdfStructure.cs reads a tagged PDF's own structure for the companion .htm files (11 October 2026).
 set "appSources="

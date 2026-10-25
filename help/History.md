@@ -6,6 +6,11 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 25 October 2026 -- the newest kit, and extCheck's rules
+
+- **The build uses the newest Homer kit it finds,** and logs each one: your HomerDev variable and C:\HomerDev. The variable named an older installed kit in Program Files (1.77.6), which a build took first.
+- **Files it makes are judged by extCheck's rules,** from the kit's Quality.cs, now compiled in (HomerDev 1.92.5). A route table the build puts in exec is no longer removed by tidy, so conversions use the kit's current ways.
+
 ## 20 October 2026 -- Companion PDFs through the Homer kit
 
 - **Recordings and speech, as in every Homer app:** a recording converts to a transcript, and a document to spoken audio, through the Homer kit. The build needs HomerDev 1.87.5 or later.

@@ -6,6 +6,18 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 30 October 2026, later -- the build compiles the kit's Schema
+
+- **bookFido builds again.** The kit's Schema, which bookFido uses to add a field BookTrail lacks, was named in the wrong list in build.cmd, so it was never compiled and the build stopped with thirteen errors. It is now one of the kit modules the build compiles (found by ChatGPT's audit of the logs).
+
+## 30 October 2026 -- BookTrail kept as DbDo makes it
+
+- **Catalog documents are written safely.** Each library's .htm and .md catalog was written straight over the old one, so a full disk or an interruption could leave neither a good old one nor a good new one. Each is now written beside its target and swapped in whole, through the Homer kit (from an audit by another AI).
+- **A book is found in BookTrail by its fields, not by spelling its prime.** bookFido built the prime itself, author|title|source, but DbDo now joins look and prime with a hidden separator when it opens a database, and BookTrail's prime now includes series and volume. bookFido would have missed every book and tried to add it again. It now finds a copy by its source and catalog number, or by author, title and source (from an audit by another AI).
+- **BookTrail is never rebuilt.** An older BookTrail missing a field bookFido writes gains it, empty, through the Homer kit's Schema, the same way DbDo upgrades a database. bookFido no longer rewrites look and prime to its own form, which would have undone DbDo's.
+- **Two editions are kept apart.** A second copy with a different catalog number but the same author, title and source is no longer written over the first. It is left out, the log names it, and the run's summary counts it.
+- **The build needs HomerDev 1.94.0 or later.**
+
 ## 25 October 2026 -- the newest kit, and extCheck's rules
 
 - **The build uses the newest Homer kit it finds,** and logs each one: your HomerDev variable and C:\HomerDev. The variable named an older installed kit in Program Files (1.77.6), which a build took first.

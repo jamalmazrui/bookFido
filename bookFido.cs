@@ -3239,8 +3239,8 @@ class bookFido
         sbHtml.Append("</body>\r\n</html>\r\n");
         sHtmPath = Path.Combine(sDownloadDir, "Audible_Library.htm");
         sMdPath = Path.Combine(sDownloadDir, "Audible_Library.md");
-        File.WriteAllText(sHtmPath, sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(sMdPath, sbMd.ToString(), new UTF8Encoding(true));
+        publishText(sHtmPath, sbHtml.ToString());
+        publishText(sMdPath, sbMd.ToString());
         log("Wrote the library catalog: " + sHtmPath);
         log("Wrote the library catalog: " + sMdPath);
         return sHtmPath;
@@ -4493,8 +4493,8 @@ class bookFido
         appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Edition", dByFormat);
         appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the reading history, with the number of books they account for, and a biography when a reliable one was found.");
         sbHtml.Append("</body>\r\n</html>\r\n");
-        File.WriteAllText(Path.Combine(sDownloadDir, "NLS_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(Path.Combine(sDownloadDir, "NLS_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        publishText(Path.Combine(sDownloadDir, "NLS_Library.htm"), sbHtml.ToString());
+        publishText(Path.Combine(sDownloadDir, "NLS_Library.md"), sbMd.ToString());
         log("The NLS catalog was saved as NLS_Library.htm and NLS_Library.md in " + sDownloadDir);
     }
 
@@ -4887,8 +4887,8 @@ class bookFido
         appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
         appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the history, with the number of books they account for, and a biography when a reliable one was found.");
         sbHtml.Append("</body>\r\n</html>\r\n");
-        File.WriteAllText(Path.Combine(sDownloadDir, "Bookshare_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(Path.Combine(sDownloadDir, "Bookshare_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        publishText(Path.Combine(sDownloadDir, "Bookshare_Library.htm"), sbHtml.ToString());
+        publishText(Path.Combine(sDownloadDir, "Bookshare_Library.md"), sbMd.ToString());
         log("The Bookshare catalog was saved as Bookshare_Library.htm and Bookshare_Library.md in " + sDownloadDir);
     }
 
@@ -5258,8 +5258,16 @@ class bookFido
     // DbDo. When DbDo is not there, no database is written at all; the .htm, .md and .xlsx files are the output.
     //
     // ONE ROW PER COPY. A book on Audible and from BARD is two rows: format, source, catalog number and narrator
-    // describe a copy. A row is known by author, title and source -- BookTrail's prime -- and work holds the
-    // cross-library key every copy of one work shares, which is also what lets a later run reuse what was gathered.
+    // describe a copy. A row is found by its source and catalog number, or failing those by author, title and source,
+    // and work holds the cross-library key every copy of one work shares, which is also what lets a later run reuse
+    // what was gathered.
+    //
+    // BOOKTRAIL'S SHAPE IS DbDo's (30 October 2026, from an audit by another AI). bookFido found a row by spelling
+    // BookTrail's prime itself, author|title|source, and rebuilt any table whose prime read otherwise back to that.
+    // DbDo then changed both: it joins look and prime with character 31 when it opens a database, and BookTrail's
+    // prime became author, series, volume, title and source. Each run would have missed every book, tried to add it
+    // again, and rebuilt the table against DbDo. bookFido now never spells a prime and never rebuilds the table: it
+    // finds rows by their fields, and only adds a field BookTrail lacks, through the kit's Schema, as DbDo does.
     //
     // WHO OWNS WHICH FIELD. What the source says -- format, catalog number, link, publisher, first published,
     // language, length, pages, ISBN, progress, average rating and its count, Wikipedia, files, work -- is refreshed on
@@ -5267,8 +5275,6 @@ class bookFido
     // reason -- is filled only where it is blank, except that a status only ever moves forward: want to read, then
     // reading, then read. Tags and notes only gain lines. Nothing a reader typed is overwritten.
 
-    const string sBookTrailLook = "look TEXT GENERATED ALWAYS AS (rtrim(iif(author IS NOT NULL AND length(CAST(author AS TEXT))>0, CAST(author AS TEXT) || ' | ', '') || iif(title IS NOT NULL AND length(CAST(title AS TEXT))>0, CAST(title AS TEXT) || ' | ', '') || iif(series IS NOT NULL AND length(CAST(series AS TEXT))>0, CAST(series AS TEXT) || ' | ', '') || iif(volume IS NOT NULL AND length(CAST(volume AS TEXT))>0, CAST(volume AS TEXT) || ' | ', '') || iif(source IS NOT NULL AND length(CAST(source AS TEXT))>0, CAST(source AS TEXT) || ' | ', ''), ' | ')) STORED";
-    const string sBookTrailPrime = "prime TEXT GENERATED ALWAYS AS (coalesce(CAST(author AS TEXT),'')||'|'||coalesce(CAST(title AS TEXT),'')||'|'||coalesce(CAST(source AS TEXT),'')) STORED";
     static readonly string[] aBookTrailColumns = new string[] {
         "title TEXTLINE", "subtitle TEXTLINE", "author TEXTLINE", "narrator TEXTLINE", "series TEXTLINE", "volume TEXTLINE",
         "status TEXTLINE", "format TEXTLINE", "source TEXTLINE", "catalog_number TEXTLINE", "genre TEXTLINE", "rating TEXTLINE",
@@ -5392,57 +5398,48 @@ class bookFido
         return lRows;
     }
 
-    // BookTrail as bookFido needs it: the new fields, and a prime of author, title and source. An older BookTrail is
-    // rebuilt in one transaction, keeping every row, every column a reader added, and every link in maps.
+    // BookTrail as bookFido needs it: every field bookFido writes. A field an older BookTrail lacks is added, empty,
+    // at the end of the table, through the kit's Schema, which DbDo's own upgrade uses too; its edited trigger is then
+    // taught the new field. Nothing is rebuilt, so look, prime, maps and every record stay as DbDo made them.
     static void ensureSchema()
     {
-        List<string> lsCols, lsCopy, lsExtra, lsKnown, lsNames;
-        string sCopy, sDdl, sTableSql;
+        List<Schema.Column> lHere, lMissing, lWanted;
+        int iAt;
 
-        sTableSql = scalarSql("SELECT sql FROM sqlite_master WHERE name = @n", "@n", "books");
-        lsNames = new List<string>();
-        Dictionary<string, string> dHave = new Dictionary<string, string>();
-        foreach (string[] aRow in sqlRows("PRAGMA table_xinfo(books)", 7)) { if (aRow[6] == "0") dHave[aRow[1]] = aRow[2]; }
-        int iPrimeAt = sTableSql.IndexOf("prime TEXT", StringComparison.Ordinal);
-        if (dHave.ContainsKey("work") && iPrimeAt >= 0 && sTableSql.Substring(iPrimeAt).Contains("CAST(source AS TEXT)")) { log("BookTrail's structure is current"); return; }
-        lsKnown = new List<string> { "book_id", "added", "edited", "marked" };
-        foreach (string sCol in aBookTrailColumns) lsKnown.Add(sCol.Split(' ')[0]);
-        foreach (string sCol in aBookTrailTail) lsKnown.Add(sCol.Split(' ')[0]);
-        lsExtra = new List<string>();
-        foreach (KeyValuePair<string, string> oCol in dHave) if (!lsKnown.Contains(oCol.Key)) lsExtra.Add(oCol.Key + " " + (oCol.Value == "" ? "TEXT" : oCol.Value));
-        lsCols = new List<string>(aBookTrailColumns);
-        lsCols.AddRange(lsExtra);
-        lsCols.AddRange(aBookTrailTail);
-        sDdl = "CREATE TABLE \"books\" (\n  book_id INTEGER PRIMARY KEY AUTOINCREMENT,\n  added TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  edited TEXTTIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  "
-            + string.Join(",\n  ", lsCols.ToArray()) + ",\n  " + sBookTrailLook + ",\n  " + sBookTrailPrime + ",\n  marked INTEGER NOT NULL DEFAULT 0\n)";
-        lsCopy = new List<string>();
-        foreach (string sName in dHave.Keys)
+        lHere = Schema.lParseColumns(columnsText());
+        lWanted = new List<Schema.Column>();
+        iAt = 0;
+        foreach (string sCol in aBookTrailColumns.Concat(aBookTrailTail))
         {
-            bool bKept = sName == "book_id" || sName == "added" || sName == "edited" || sName == "marked";
-            foreach (string sCol in lsCols) if (sCol.Split(' ')[0] == sName) bKept = true;
-            if (bKept) lsCopy.Add("\"" + sName + "\"");
+            string[] aParts = sCol.Split(' ');
+            Schema.Column oColumn = new Schema.Column();
+            iAt = iAt + 1;
+            oColumn.iPosition = iAt;
+            oColumn.sName = aParts[0];
+            oColumn.sType = aParts.Length > 1 ? aParts[1] : "";
+            lWanted.Add(oColumn);
         }
-        sCopy = string.Join(", ", lsCopy.ToArray());
-        List<string> lsEdited = new List<string>();
-        foreach (string sCol in lsCols) lsEdited.Add(sCol.Split(' ')[0]);
-        List<string> lsOf = new List<string>(), lsWhen = new List<string>();
-        foreach (string sName in lsEdited) { lsOf.Add("\"" + sName + "\""); lsWhen.Add("OLD.\"" + sName + "\" IS NOT NEW.\"" + sName + "\""); }
+        lMissing = Schema.lMissingColumns(lHere, lWanted);
+        if (lMissing.Count == 0) { log("BookTrail's structure is current"); return; }
         using (SqliteTransaction transactionShape = connectionDb.BeginTransaction())
         {
-            runSql("ALTER TABLE \"books\" RENAME TO \"books_before\"");
-            runSql(sDdl);
-            runSql("INSERT INTO \"books\" (" + sCopy + ") SELECT " + sCopy + " FROM \"books_before\"");
-            runSql("DROP TABLE \"books_before\"");
-            runSql("CREATE UNIQUE INDEX books_prime ON books(prime)");
-            runSql("CREATE TRIGGER \"trg_books_edited\" AFTER UPDATE OF " + string.Join(", ", lsOf.ToArray()) + " ON \"books\" FOR EACH ROW WHEN " + string.Join(" OR ", lsWhen.ToArray()) + " BEGIN UPDATE \"books\" SET edited = CURRENT_TIMESTAMP WHERE \"book_id\" = NEW.\"book_id\"; END");
-            runSql("CREATE TRIGGER \"trg_books_maps\" AFTER UPDATE ON \"books\" FOR EACH ROW WHEN OLD.prime IS NOT NEW.prime BEGIN UPDATE maps SET prime1 = NEW.prime WHERE tbl1 = 'books' AND prime1 = OLD.prime; UPDATE maps SET prime2 = NEW.prime WHERE tbl2 = 'books' AND prime2 = OLD.prime; END");
-            runSql("CREATE TRIGGER \"trg_books_maps_delete\" AFTER DELETE ON \"books\" FOR EACH ROW BEGIN DELETE FROM maps WHERE (tbl1 = 'books' AND prime1 = OLD.prime) OR (tbl2 = 'books' AND prime2 = OLD.prime); END");
-            foreach (string sSide in new string[] { "1", "2" })
-                runSql("UPDATE maps SET prime" + sSide + " = (SELECT b.prime FROM books b WHERE coalesce(b.author,'')||'|'||coalesce(b.title,'') = maps.prime" + sSide + " LIMIT 1) WHERE tbl" + sSide + " = 'books' AND EXISTS (SELECT 1 FROM books b WHERE coalesce(b.author,'')||'|'||coalesce(b.title,'') = maps.prime" + sSide + ")");
-            runSql("INSERT OR IGNORE INTO lookups (tbl, fld, val, ordinal, src) VALUES ('books', 'source', 'Goodreads', (SELECT coalesce(max(ordinal),0)+1 FROM lookups WHERE fld='source'), 'BookTrail')");
+            foreach (Schema.Column oColumn in lMissing) runSql(Schema.sAddColumnSql("books", oColumn));
+            if (scalarSql("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name = @n", "@n", Schema.sEditedTriggerName("books")) != "0")
+                foreach (string sSql in Schema.aEditedTriggerSql("books", Schema.lParseColumns(columnsText()))) runSql(sSql);
+            runSql("INSERT OR IGNORE INTO lookups (tbl, fld, val, ordinal, src) SELECT 'books', 'source', 'Goodreads', (SELECT coalesce(max(ordinal),0)+1 FROM lookups WHERE fld='source'), 'BookTrail' WHERE NOT EXISTS (SELECT 1 FROM lookups WHERE tbl = 'books' AND fld = 'source' AND val = 'Goodreads')");
             transactionShape.Commit();
         }
-        log("BookTrail's structure was brought up to date: " + lsCopy.Count + " columns kept" + (lsExtra.Count > 0 ? ", including " + lsExtra.Count + " a reader added" : ""));
+        List<string> lsNames = new List<string>();
+        foreach (Schema.Column oColumn in lMissing) lsNames.Add(oColumn.sName);
+        log("BookTrail gained " + lMissing.Count + (lMissing.Count == 1 ? " field: " : " fields: ") + string.Join(", ", lsNames.ToArray()));
+    }
+
+    // columnsText: BookTrail's books fields as the kit's Schema lists them, for Schema.lParseColumns.
+    static string columnsText()
+    {
+        StringBuilder sb = new StringBuilder();
+        foreach (string[] aRow in sqlRows(Schema.sColumnsSql("books", "main"), 1)) sb.Append(aRow[0]);
+        return sb.ToString();
     }
 
     // What an earlier run gathered, read back from BookTrail, so it is not asked for again: each work's first
@@ -5488,6 +5485,7 @@ class bookFido
             using (SqliteTransaction transactionSave = connectionDb.BeginTransaction())
             {
                 iBookCount = 0;
+                iCopiesNotWritten = 0;
                 foreach (Dictionary<string, object> dRow in lCatalog) iBookCount = iBookCount + saveCopy(dRow, "Audible");
                 foreach (Dictionary<string, object> dRow in lKindleCatalog) iBookCount = iBookCount + saveCopy(dRow, "Kindle");
                 foreach (Dictionary<string, object> dRow in lGoodreadsCatalog) iBookCount = iBookCount + saveCopy(dRow, "Goodreads");
@@ -5496,7 +5494,8 @@ class bookFido
                 if (iBookCount > 0) iSamplesRemoved = removeSampleBooks();
                 saveAuthors();
                 transactionSave.Commit();
-                log("BookTrail was updated: " + iBookCount + " copies across the five libraries");
+                log("BookTrail was updated: " + iBookCount + " copies across the five libraries"
+                    + (iCopiesNotWritten > 0 ? "; " + iCopiesNotWritten + (iCopiesNotWritten == 1 ? " copy was" : " copies were") + " not written, since another edition already holds its identity, as the log names" : ""));
                 bDbUpdated = true;
             }
             connectionDb.Close();
@@ -5630,11 +5629,11 @@ class bookFido
 
     static void writeCopy(Dictionary<string, string> d, List<string> lTags, List<string> lNotes)
     {
-        string sPrime, sStatus;
+        string sId, sStatus;
         List<string> lsSet, lsArgs;
 
-        sPrime = d["author"] + "|" + d["title"] + "|" + d["source"];
-        if (scalarSql("SELECT count(*) FROM books WHERE prime = @p", "@p", sPrime) == "0")
+        sId = findCopy(d);
+        if (sId == "")
         {
             List<string> lsCols = new List<string>(), lsMarks = new List<string>();
             lsArgs = new List<string>();
@@ -5646,12 +5645,28 @@ class bookFido
                 lsArgs.Add("@" + oField.Key);
                 lsArgs.Add(oField.Value);
             }
-            runSqlWith("INSERT INTO books (" + string.Join(", ", lsCols.ToArray()) + ") VALUES (" + string.Join(", ", lsMarks.ToArray()) + ")", lsArgs.ToArray());
+            // TWO EDITIONS, ONE PRIME (30 October 2026, from an audit by another AI). Two copies with different
+            // catalog numbers but the same author, title and source -- two Kindle editions, say -- share BookTrail's
+            // prime, which must be unique. The second was once written over the first. Now it is not written, and
+            // the log names both, so nothing a reader has is changed by a guess.
+            try
+            {
+                runSqlWith("INSERT INTO books (" + string.Join(", ", lsCols.ToArray()) + ") VALUES (" + string.Join(", ", lsMarks.ToArray()) + ")", lsArgs.ToArray());
+            }
+            catch (SqliteException oError)
+            {
+                if (oError.SqliteErrorCode != 19) throw;
+                iCopiesNotWritten = iCopiesNotWritten + 1;
+                log("Not written, since BookTrail already holds a copy with the same identity: " + fieldOf(d, "author") + ", " + fieldOf(d, "title") + ", " + fieldOf(d, "source")
+                    + (fieldOf(d, "catalog_number") != "" ? ", catalog number " + fieldOf(d, "catalog_number") : "") + ": " + oError.Message);
+                return;
+            }
+            sId = scalarSqlWith("SELECT last_insert_rowid()", new string[0]);
         }
         else
         {
             lsSet = new List<string>();
-            lsArgs = new List<string> { "@p", sPrime };
+            lsArgs = new List<string> { "@id", sId };
             foreach (string sField in aOwnedFields)
             {
                 if (!d.ContainsKey(sField) || d[sField] == "") continue;
@@ -5666,18 +5681,44 @@ class bookFido
             }
             if (d.ContainsKey("status") && d["status"] != "")
             {
-                sStatus = scalarSql("SELECT coalesce(status,'') FROM books WHERE prime = @p", "@p", sPrime);
+                sStatus = scalarSql("SELECT coalesce(status,'') FROM books WHERE book_id = @id", "@id", sId);
                 if (statusRank(d["status"]) > statusRank(sStatus) && (sStatus == "" || statusRank(sStatus) > 0)) { lsSet.Add("status = @status"); lsArgs.Add("@status"); lsArgs.Add(d["status"]); }
             }
-            if (lsSet.Count > 0) runSqlWith("UPDATE books SET " + string.Join(", ", lsSet.ToArray()) + " WHERE prime = @p", lsArgs.ToArray());
+            if (lsSet.Count > 0) runSqlWith("UPDATE books SET " + string.Join(", ", lsSet.ToArray()) + " WHERE book_id = @id", lsArgs.ToArray());
         }
         if (lTags.Count > 0 || lNotes.Count > 0)
         {
-            string sTags = scalarSql("SELECT coalesce(tags,'') FROM books WHERE prime = @p", "@p", sPrime);
-            string sNotes = scalarSql("SELECT coalesce(notes,'') FROM books WHERE prime = @p", "@p", sPrime);
+            string sTags = scalarSql("SELECT coalesce(tags,'') FROM books WHERE book_id = @id", "@id", sId);
+            string sNotes = scalarSql("SELECT coalesce(notes,'') FROM books WHERE book_id = @id", "@id", sId);
             string sTagsNew = addedLines(sTags, lTags, "\r\n"), sNotesNew = addedLines(sNotes, lNotes, "\r\n");
-            if (sTagsNew != sTags || sNotesNew != sNotes) runSqlWith("UPDATE books SET tags = @t, notes = @n WHERE prime = @p", new string[] { "@t", sTagsNew, "@n", sNotesNew, "@p", sPrime });
+            if (sTagsNew != sTags || sNotesNew != sNotes) runSqlWith("UPDATE books SET tags = @t, notes = @n WHERE book_id = @id", new string[] { "@t", sTagsNew, "@n", sNotesNew, "@id", sId });
         }
+    }
+
+    // iCopiesNotWritten: copies left out this run because BookTrail already held one with the same identity.
+    static int iCopiesNotWritten = 0;
+
+    // findCopy: the book_id of the BookTrail row for this copy, or "". The same source and catalog number find it
+    // first, so a corrected title still finds its row; otherwise author, title and source do, unless the row found
+    // carries a different catalog number, which makes it another edition.
+    static string findCopy(Dictionary<string, string> d)
+    {
+        string sAuthor = fieldOf(d, "author"), sCatalog = fieldOf(d, "catalog_number"), sSource = fieldOf(d, "source"), sTitle = fieldOf(d, "title");
+        if (sCatalog != "")
+        {
+            string sId = scalarSqlWith("SELECT book_id FROM books WHERE coalesce(source,'') = @s AND catalog_number = @c ORDER BY book_id LIMIT 1",
+                new string[] { "@s", sSource, "@c", sCatalog });
+            if (sId != "") return sId;
+        }
+        return scalarSqlWith("SELECT book_id FROM books WHERE coalesce(author,'') = @a AND coalesce(title,'') = @t AND coalesce(source,'') = @s"
+            + " AND (@c = '' OR coalesce(catalog_number,'') = '' OR catalog_number = @c) ORDER BY book_id LIMIT 1",
+            new string[] { "@a", sAuthor, "@t", sTitle, "@s", sSource, "@c", sCatalog });
+    }
+
+    static string fieldOf(Dictionary<string, string> d, string sKey)
+    {
+        string sValue;
+        return d.TryGetValue(sKey, out sValue) && sValue != null ? sValue : "";
     }
 
     // Each author found, in BookTrail's author pick list, with the biography gathered and its link. Only blanks are
@@ -5827,6 +5868,16 @@ class bookFido
         return sPlain;
     }
 
+    // publishText: a catalog document written safely (30 October 2026, from an audit by another AI). The .htm and .md
+    // catalogs were written straight over the old ones, so a full disk or an interruption could leave neither a good
+    // old one nor a good new one, while the database and state were written safely. Now each is written beside its
+    // target and swapped in whole, by the kit's Util.writeTextSafely; a warning it returns is logged.
+    static void publishText(string sPath, string sText)
+    {
+        string sWarning = Homer.Util.writeTextSafely(sPath, sText, new UTF8Encoding(true), "");
+        if (sWarning != "") log(sWarning);
+    }
+
     static void runSqlWith(string sSql, string[] aPairs)
     {
         int iAt;
@@ -5837,6 +5888,20 @@ class bookFido
             for (iAt = 0; iAt < aPairs.Length; iAt = iAt + 2) commandRun.Parameters.AddWithValue(aPairs[iAt], aPairs[iAt + 1]);
             commandRun.ExecuteNonQuery();
         }
+    }
+
+    static string scalarSqlWith(string sSql, string[] aPairs)
+    {
+        object oResult;
+        int iAt;
+
+        using (SqliteCommand commandRun = connectionDb.CreateCommand())
+        {
+            commandRun.CommandText = sSql;
+            for (iAt = 0; iAt < aPairs.Length; iAt = iAt + 2) commandRun.Parameters.AddWithValue(aPairs[iAt], aPairs[iAt + 1]);
+            oResult = commandRun.ExecuteScalar();
+        }
+        return oResult == null || oResult is DBNull ? "" : Convert.ToString(oResult);
     }
 
     static string scalarSql(string sSql, string sName, string sValue)
@@ -6106,8 +6171,8 @@ class bookFido
         appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
         appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author on the shelves, with the number of books they account for, and a biography when a reliable one was found.");
         sbHtml.Append("</body>\r\n</html>\r\n");
-        File.WriteAllText(Path.Combine(sDownloadDir, "Goodreads_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(Path.Combine(sDownloadDir, "Goodreads_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        publishText(Path.Combine(sDownloadDir, "Goodreads_Library.htm"), sbHtml.ToString());
+        publishText(Path.Combine(sDownloadDir, "Goodreads_Library.md"), sbMd.ToString());
         log("The Goodreads catalog was saved as Goodreads_Library.htm and Goodreads_Library.md in " + sDownloadDir);
     }
 
@@ -6523,8 +6588,8 @@ class bookFido
         appendAppendix(sbHtml, sbMd, "appendix-d", "Appendix D: Books by Publisher", dByPublisher);
         appendAuthorsAppendix(sbHtml, sbMd, dByAuthor, new Dictionary<string, int>(), "appendix-e", "Appendix E: About the Authors", "Every author in the Kindle library, with the number of books they account for, and a biography when a reliable one was found.");
         sbHtml.Append("</body>\r\n</html>\r\n");
-        File.WriteAllText(Path.Combine(sDownloadDir, "Kindle_Library.htm"), sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(Path.Combine(sDownloadDir, "Kindle_Library.md"), sbMd.ToString(), new UTF8Encoding(true));
+        publishText(Path.Combine(sDownloadDir, "Kindle_Library.htm"), sbHtml.ToString());
+        publishText(Path.Combine(sDownloadDir, "Kindle_Library.md"), sbMd.ToString());
         log("The Kindle catalog was saved as Kindle_Library.htm and Kindle_Library.md in " + sDownloadDir);
     }
 
@@ -6644,8 +6709,8 @@ class bookFido
             if (sLibrary == "NLS") appendNlsEntry(sbHtml, sbMd, (Dictionary<string, object>) dEntry["row"]);
         }
         sbHtml.Append("</body>\r\n</html>\r\n");
-        File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.htm"), sbHtml.ToString(), new UTF8Encoding(true));
-        File.WriteAllText(Path.Combine(sDownloadDir, "bookFido.md"), sbMd.ToString(), new UTF8Encoding(true));
+        publishText(Path.Combine(sDownloadDir, "bookFido.htm"), sbHtml.ToString());
+        publishText(Path.Combine(sDownloadDir, "bookFido.md"), sbMd.ToString());
         log("The consolidated catalog was saved as bookFido.htm and bookFido.md in " + sDownloadDir + ": " + lEntries.Count + " entries");
         return Path.Combine(sDownloadDir, "bookFido.htm");
     }

@@ -6,6 +6,14 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 18 November 2026 -- One set of dialog keys, names and words across Homer
+
+- **Shift+F1 and Control+Slash work in every message, as in every Homer dialog.** bookFido's messages were Windows message boxes, which answer neither: the sign-in pauses for Audible, Bookshare, Goodreads, Kindle and NLS, the errors and the closing summary. Each is now an Lbc dialog, through the kit's LbcMessage, so What This Does and Where Am I work there too, Yes is Alt+Y and No is Alt+N, and Control+Enter and Escape answer as everywhere.
+- **The Hotkeys page uses the suite's names and layout,** as DbDo, EdSharp and FileDir do: By Command Name, By Key, In Tab Order, Text Box Keys and Why These Keys. F11 is Elevate Version, Shift+F1 is What This Does, and Control+Slash, Where Am I, is listed for the first time.
+- **A checkbox is marked, not ticked or checked,** in the installer, the guides, the tutorials and every message, as across Homer.
+- **The opening dialog stays bookFido's own,** built on the kit's LbcDialog rather than its LaunchDialog: it chooses libraries, with no sources or output directory, so the launch bands would be empty. Its keys are the dialog keys every Homer dialog has.
+- **This needs HomerDev 1.259.0,** since kit 1.258.0's Say.cs lost a quotation mark and no C# app could build with it.
+
 ## 30 October 2026, later -- the build compiles the kit's Schema
 
 - **bookFido builds again.** The kit's Schema, which bookFido uses to add a field BookTrail lacks, was named in the wrong list in build.cmd, so it was never compiled and the build stopped with thirteen errors. It is now one of the kit modules the build compiles (found by ChatGPT's audit of the logs).

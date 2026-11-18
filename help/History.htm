@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc 3.12.1" />
+  <meta name="generator" content="pandoc 3.14" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Jamal Mazrui" />
   <title>History</title>
@@ -36,27 +36,6 @@
       }
       h1 {
         font-size: 1.8em;
-      }
-    }
-    @media print {
-      html {
-        color-scheme: light only;
-      }
-      html, body, pre, code {
-        background-color: transparent;
-      }
-      body, a, a:visited, blockquote {
-        color: black;
-      }
-      pre, code {
-        padding: 0;
-      }
-      p, h2, h3 {
-        orphans: 3;
-        widows: 3;
-      }
-      h2, h3, h4 {
-        page-break-after: avoid;
       }
     }
     p {
@@ -164,6 +143,12 @@
       text-decoration: none;
     }
     span.smallcaps{font-variant: small-caps;}
+    em, em em em, em em em em em {
+      font-style: italic;
+    }
+    em em, em em em em {
+      font-style: normal;
+    }
     div.columns{display: flex; gap: 1.5em;}
     div.column{flex: auto;}
     @media screen {
@@ -180,7 +165,27 @@
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
-  </style>
+    @media print {
+      html {
+        color-scheme: light only;
+      }
+      html, body, pre, code {
+        background-color: transparent;
+      }
+      body, a, a:visited, blockquote {
+        color: black;
+      }
+      pre, code {
+        padding: 0;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }  </style>
 </head>
 <body>
 <header id="title-block-header">
@@ -191,6 +196,11 @@
 <li><a href="#bookfido-history" id="toc-bookfido-history">bookFido
 History</a>
 <ul>
+<li><a
+href="#november-2026-one-set-of-dialog-keys-names-and-words-across-homer"
+id="toc-november-2026-one-set-of-dialog-keys-names-and-words-across-homer">18
+November 2026 – One set of dialog keys, names and words across
+Homer</a></li>
 <li><a href="#october-2026-later-the-build-compiles-the-kits-schema"
 id="toc-october-2026-later-the-build-compiles-the-kits-schema">30
 October 2026, later – the build compiles the kit’s Schema</a></li>
@@ -270,6 +280,33 @@ id="toc-september-2026-built-on-the-homer-development-kit">September
 </nav>
 <main>
 <h1 id="bookfido-history">bookFido History</h1>
+<h2
+id="november-2026-one-set-of-dialog-keys-names-and-words-across-homer">18
+November 2026 – One set of dialog keys, names and words across
+Homer</h2>
+<ul>
+<li><strong>Shift+F1 and Control+Slash work in every message, as in
+every Homer dialog.</strong> bookFido’s messages were Windows message
+boxes, which answer neither: the sign-in pauses for Audible, Bookshare,
+Goodreads, Kindle and NLS, the errors and the closing summary. Each is
+now an Lbc dialog, through the kit’s LbcMessage, so What This Does and
+Where Am I work there too, Yes is Alt+Y and No is Alt+N, and
+Control+Enter and Escape answer as everywhere.</li>
+<li><strong>The Hotkeys page uses the suite’s names and layout,</strong>
+as DbDo, EdSharp and FileDir do: By Command Name, By Key, In Tab Order,
+Text Box Keys and Why These Keys. F11 is Elevate Version, Shift+F1 is
+What This Does, and Control+Slash, Where Am I, is listed for the first
+time.</li>
+<li><strong>A checkbox is marked, not ticked or checked,</strong> in the
+installer, the guides, the tutorials and every message, as across
+Homer.</li>
+<li><strong>The opening dialog stays bookFido’s own,</strong> built on
+the kit’s LbcDialog rather than its LaunchDialog: it chooses libraries,
+with no sources or output directory, so the launch bands would be empty.
+Its keys are the dialog keys every Homer dialog has.</li>
+<li><strong>This needs HomerDev 1.259.0,</strong> since kit 1.258.0’s
+Say.cs lost a quotation mark and no C# app could build with it.</li>
+</ul>
 <h2 id="october-2026-later-the-build-compiles-the-kits-schema">30
 October 2026, later – the build compiles the kit’s Schema</h2>
 <ul>

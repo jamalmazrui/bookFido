@@ -14,9 +14,9 @@
 ; bookFido installs no components of its own: it drives the Microsoft Edge
 ; that Windows already has, and everything else -- PdfPig, EPPlus, and
 ; Microsoft's SQLite library with its engine -- is inside bookFido.exe. The
-; finish page therefore offers only Launch (ticked) and Open the user guide
-; (unticked), which is what the installer before the kit offered, with the
-; guide box now unticked as the kit's finish-page rule asks.
+; finish page therefore offers only Launch (marked) and Open the user guide
+; (unmarked), which is what the installer before the kit offered, with the
+; guide box now unmarked as the kit's finish-page rule asks.
 
 #define AppName       "bookFido"
 
@@ -159,8 +159,8 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\exec\{#AppExeName}"; WorkingD
 
 [Run]
 ; FINISH-PAGE ORDER, the HomerDev rule: Install, Update, Reinstall groups
-; (none here: bookFido installs no components), then Launch ticked, then Open
-; the user guide unticked.
+; (none here: bookFido installs no components), then Launch marked, then Open
+; the user guide unmarked.
 ;
 ; Launch only leaves a marker. The program starts from CurStepChanged(ssDone),
 ; after the Results box has been read and closed. TWO pairs of quotes: this
@@ -192,7 +192,7 @@ Type: files; Name: "{localappdata}\{#AppName}\e_sqlite3.dll"
 //      it drives the Edge that Windows keeps current itself, and the
 //      installer before the kit offered none -- so the table is empty; a
 //      component added later is one homerAdd and three [Run] entries;
-//    - the ticked boxes recorded when Finish is pressed (homerNoteTicked), so
+//    - the marked boxes recorded when Finish is pressed (homerNoteTicked), so
 //      the Results box reports only what was asked for this session;
 //    - the Results box first, the launch after it.
 //
@@ -201,7 +201,7 @@ Type: files; Name: "{localappdata}\{#AppName}\e_sqlite3.dll"
 //      Install, Update or Reinstall truthfully;
 //    - keeps the setup log with the program's own logs;
 //    - shows one Results box of what was done, then starts bookFido if the
-//      Launch box was ticked -- in that order, so the box is not hidden behind
+//      Launch box was marked -- in that order, so the box is not hidden behind
 //      the program's window.
 //  Comments inside [Code] use // or (* *), never ;.
 #include HomerDev + "\Templates\HomerComponents.iss"

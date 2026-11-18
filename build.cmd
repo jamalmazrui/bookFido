@@ -63,7 +63,7 @@ set "progFiles=%ProgramFiles%"
 
 rem ---- SETTINGS: the part an app edits -------------------------------
 rem The oldest kit with everything this build uses.
-set "kitNeeded=1.94.0"
+set "kitNeeded=1.259.0"
 rem The number to start from when version.txt is missing. A newer release
 rem tag, if the repository has one, wins; so does nothing lower than this.
 set "seedVersion=1.2.0"

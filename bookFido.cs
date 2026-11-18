@@ -278,7 +278,7 @@ class bookFido
         {
             log("Fatal error: " + oException.ToString());
             focusWhenShown("bookFido error");
-            MessageBox.Show("bookFido stopped with a fatal error.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            LbcMessage.show("bookFido stopped with a fatal error.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             iExitCode = 1;
         }
         shutdownEdge();
@@ -355,7 +355,7 @@ class bookFido
         {
             log("The Edge debugging port never became reachable");
             focusWhenShown("bookFido error");
-            MessageBox.Show("Microsoft Edge did not start with its debugging port.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            LbcMessage.show("Microsoft Edge did not start with its debugging port.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
         await connectCdp();
@@ -370,14 +370,14 @@ class bookFido
             if (sCurrentUrl.Contains("/library")) { bSignedIn = true; break; }
             if (iTry == 1) log("Not logged in yet, so pausing for the user to log in");
             focusWhenShown("bookFido: log in to Audible");
-            dialogResultAnswer = MessageBox.Show("You are not logged in to Audible yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to exit without downloading anything.", "bookFido: log in to Audible", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+            dialogResultAnswer = LbcMessage.show("You are not logged in to Audible yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to exit without downloading anything.", "bookFido: log in to Audible", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
             if (dialogResultAnswer == DialogResult.Cancel) { log("The user chose Cancel at the login prompt, so exiting"); await closeEdgeAsync(); return 0; }
         }
         if (!bSignedIn)
         {
             log("The library page could not be reached after " + iLoginTryMax + " attempts");
             focusWhenShown("bookFido error");
-            MessageBox.Show("The Audible library page could not be reached.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            LbcMessage.show("The Audible library page could not be reached.  The session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             await closeEdgeAsync();
             return 1;
         }
@@ -567,7 +567,7 @@ class bookFido
         // same focus treatment as the timed announcements.
         await closeEdgeAsync();
         focusWhenShown("bookFido finished");
-        MessageBox.Show(sSummary, "bookFido finished", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        LbcMessage.show(sSummary, "bookFido finished", MessageBoxButtons.OK, MessageBoxIcon.Information);
         if (sLibraryHtmPath != "") openInDefaultBrowser(sLibraryHtmPath);
         return 0;
     }
@@ -604,7 +604,7 @@ class bookFido
         try { Log.error("FATAL, " + sWhere + ": " + sText); Log.close(); } catch { }
         try
         {
-            MessageBox.Show("bookFido stopped because of " + sWhere + ":\r\n\r\n" + (oError == null ? "(no details)" : oError.GetType().Name + ": " + oError.Message) +
+            LbcMessage.show("bookFido stopped because of " + sWhere + ":\r\n\r\n" + (oError == null ? "(no details)" : oError.GetType().Name + ": " + oError.Message) +
                 "\r\n\r\nThe session log in %LOCALAPPDATA%\\bookFido\\logs has the details.", "bookFido error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch { }
@@ -4043,7 +4043,7 @@ class bookFido
                 await logPageState("before asking for the NLS sign-in");
                 if (iAttempt == 1) { await navigate(sNlsLoginUrl); await Task.Delay(3000); }
                 focusWhenShown("bookFido: log in to NLS");
-                dialogResultNls = MessageBox.Show("bookFido cannot see your NLS reading history yet.\r\n\r\nSign in to BARD in the Edge window that is open, and go to your reading history if you like.  Then choose Yes to continue.\r\n\r\nChoose No to clear the stored BARD sign-in and start it over, which can cure a sign-in error such as a missing parameter.  Only this site is affected; your other libraries stay signed in.\r\n\r\nChoose Cancel to skip the NLS library this run.", "bookFido: log in to NLS", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
+                dialogResultNls = LbcMessage.show("bookFido cannot see your NLS reading history yet.\r\n\r\nSign in to BARD in the Edge window that is open, and go to your reading history if you like.  Then choose Yes to continue.\r\n\r\nChoose No to clear the stored BARD sign-in and start it over, which can cure a sign-in error such as a missing parameter.  Only this site is affected; your other libraries stay signed in.\r\n\r\nChoose Cancel to skip the NLS library this run.", "bookFido: log in to NLS", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
                 if (dialogResultNls == DialogResult.Cancel) { log("The NLS library was skipped at the sign-in prompt"); return; }
                 if (dialogResultNls == DialogResult.No)
                 {
@@ -4590,7 +4590,7 @@ class bookFido
             while (sCurrent.ToLower().Contains("/login") || sCurrent.ToLower().Contains("signin"))
             {
                 focusWhenShown("bookFido: log in to Bookshare");
-                if (MessageBox.Show("You are not logged in to Bookshare yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
+                if (LbcMessage.show("You are not logged in to Bookshare yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
                 await navigate(bookshareHistoryUrl(0));
                 await Task.Delay(3000);
                 sCurrent = await evaluate("location.href");
@@ -4627,7 +4627,7 @@ class bookFido
                     if (iPage == 1 && await loginFormShowing())
                     {
                         focusWhenShown("bookFido: log in to Bookshare");
-                        if (MessageBox.Show("Bookshare is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
+                        if (LbcMessage.show("Bookshare is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Bookshare history this run.", "bookFido: log in to Bookshare", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Bookshare history was skipped at the login prompt"); return; }
                         await navigate(bookshareHistoryUrl(0));
                         await Task.Delay(3000);
                         iPage = 0;
@@ -4972,7 +4972,7 @@ class bookFido
             while (sCurrent.Contains("/user/sign_in") || sCurrent.ToLower().Contains("signin"))
             {
                 focusWhenShown("bookFido: log in to Goodreads");
-                if (MessageBox.Show("You are not logged in to Goodreads yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
+                if (LbcMessage.show("You are not logged in to Goodreads yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
                 await navigate("https://www.goodreads.com/review/list?shelf=all&view=table&per_page=100");
                 await Task.Delay(3000);
                 sCurrent = await evaluate("location.href");
@@ -5019,7 +5019,7 @@ class bookFido
                     if (iPage == 1 && await loginFormShowing())
                     {
                         focusWhenShown("bookFido: log in to Goodreads");
-                        if (MessageBox.Show("Goodreads is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
+                        if (LbcMessage.show("Goodreads is showing a sign-in form.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Goodreads library this run.", "bookFido: log in to Goodreads", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Goodreads library was skipped at the login prompt"); return; }
                         await navigate(sListUrl + "1");
                         await Task.Delay(3000);
                         iPage = 0;
@@ -6261,7 +6261,7 @@ class bookFido
             while (sCurrent.Contains("/ap/") || sCurrent.ToLower().Contains("signin"))
             {
                 focusWhenShown("bookFido: log in to Amazon");
-                if (MessageBox.Show("You are not logged in to Amazon yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
+                if (LbcMessage.show("You are not logged in to Amazon yet.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
                 await navigate(sKindleLibraryUrl);
                 await Task.Delay(4000);
                 sCurrent = await evaluate("location.href");
@@ -6290,7 +6290,7 @@ class bookFido
                     // redirect and only the data fetch reveals the missing
                     // login, so an authorization failure asks for one.
                     focusWhenShown("bookFido: log in to Amazon");
-                    if (MessageBox.Show("Amazon has not accepted the session as logged in.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
+                    if (LbcMessage.show("Amazon has not accepted the session as logged in.  Log in within the Edge window that is open, then choose OK to continue.  Or choose Cancel to skip the Kindle library this run.", "bookFido: log in to Amazon", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.Cancel) { log("The Kindle library was skipped at the login prompt"); return; }
                     await navigate(sKindleLibraryUrl);
                     await Task.Delay(4000);
                     iBatch = iBatch - 1;
@@ -6767,13 +6767,15 @@ class bookFido
         }
         if (!bSearchAudible && !bSearchBookshare && !bSearchGoodreads && !bSearchKindle && !bSearchNls)
         {
-            log("No library was checked, so there is nothing to search");
-            MessageBox.Show("No library was checked, so there is nothing to search.", "bookFido", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            log("No library was marked, so there is nothing to search");
+            LbcMessage.show("No library was marked, so there is nothing to search.", "bookFido", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return false;
         }
         return true;
     }
 
+    // ANY WINDOW BY ITS TITLE (18 November 2026): the messages are Lbc dialogs now, which answer Shift+F1 and Control+Slash
+    // like every Homer dialog, not Windows message boxes, so the box is looked for by its title alone.
     // Gives a plain message box the same focus treatment as the timed
     // announcements: a helper thread polls for the box by its caption and
     // forces it to the foreground, so the screen reader announces it even
@@ -6789,7 +6791,7 @@ class bookFido
 
             hBox = IntPtr.Zero;
             iWaited = 0;
-            while (hBox == IntPtr.Zero && iWaited < 5000) { Thread.Sleep(100); iWaited = iWaited + 100; hBox = FindWindowW("#32770", sCaption); }
+            while (hBox == IntPtr.Zero && iWaited < 5000) { Thread.Sleep(100); iWaited = iWaited + 100; hBox = FindWindowW(null, sCaption); }
             if (hBox == IntPtr.Zero) { log("The dialog was not found in time for focus: " + sCaption); return; }
             if (!forceForeground(hBox)) log("The dialog could not take focus: " + sCaption);
         });

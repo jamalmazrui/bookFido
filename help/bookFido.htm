@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc 3.12.1" />
+  <meta name="generator" content="pandoc 3.14" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Jamal Mazrui" />
   <title>bookFido</title>
@@ -36,27 +36,6 @@
       }
       h1 {
         font-size: 1.8em;
-      }
-    }
-    @media print {
-      html {
-        color-scheme: light only;
-      }
-      html, body, pre, code {
-        background-color: transparent;
-      }
-      body, a, a:visited, blockquote {
-        color: black;
-      }
-      pre, code {
-        padding: 0;
-      }
-      p, h2, h3 {
-        orphans: 3;
-        widows: 3;
-      }
-      h2, h3, h4 {
-        page-break-after: avoid;
       }
     }
     p {
@@ -164,6 +143,12 @@
       text-decoration: none;
     }
     span.smallcaps{font-variant: small-caps;}
+    em, em em em, em em em em em {
+      font-style: italic;
+    }
+    em em, em em em em {
+      font-style: normal;
+    }
     div.columns{display: flex; gap: 1.5em;}
     div.column{flex: auto;}
     @media screen {
@@ -180,7 +165,27 @@
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
-  </style>
+    @media print {
+      html {
+        color-scheme: light only;
+      }
+      html, body, pre, code {
+        background-color: transparent;
+      }
+      body, a, a:visited, blockquote {
+        color: black;
+      }
+      pre, code {
+        padding: 0;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }  </style>
 </head>
 <body>
 <header id="title-block-header">
@@ -331,7 +336,7 @@ an update goes to the same folder without asking. It adds a Start-menu
 group and a desktop shortcut whose hotkey is
 <strong>Alt+Control+Shift+B</strong>.</p>
 <p>The last page offers two checkboxes. <strong>Launch bookFido
-now</strong> is checked; <strong>Open the user guide</strong> is not.
+now</strong> is marked; <strong>Open the user guide</strong> is not.
 When you press Finish, a short results box says what was installed and
 where the logs are. bookFido starts after you close that box, so the box
 is never hidden behind it.</p>
@@ -345,7 +350,11 @@ GitHub whether a newer version exists. If one does, Yes is the default:
 press Enter and the new setup program is downloaded and started. If you
 already have the newest version, No is the default. If the check fails,
 for example with no internet connection, a message says so. The dialog’s
-Help (F1) ends with the same check.</p>
+Help (F1) ends with the same check. <strong>Shift+F1</strong>, What This
+Does, says what the control with focus does, and
+<strong>Control+Slash</strong>, Where Am I, says where you are, what has
+focus and its keys; both work in every dialog and message, and pressed
+twice, each shows what it said in a window.</p>
 <h2 id="using-it">Using it</h2>
 <p>Press Alt+Control+Shift+B, or run bookFido from the Start menu. An
 opening dialog explains what will happen and offers a checkbox for each

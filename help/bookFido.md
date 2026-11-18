@@ -55,13 +55,13 @@ Nothing about your libraries leaves your computer. bookFido sends no book, autho
 
 Download `bookFido_setup.exe` from the [bookFido releases page](https://github.com/jamalmazrui/bookFido/releases) and run it. It needs administrator rights, because it installs for everyone on the computer. The setup wizard asks for the folder the first time (default: `C:\Program Files\bookFido`); an update goes to the same folder without asking. It adds a Start-menu group and a desktop shortcut whose hotkey is **Alt+Control+Shift+B**.
 
-The last page offers two checkboxes. **Launch bookFido now** is checked; **Open the user guide** is not. When you press Finish, a short results box says what was installed and where the logs are. bookFido starts after you close that box, so the box is never hidden behind it.
+The last page offers two checkboxes. **Launch bookFido now** is marked; **Open the user guide** is not. When you press Finish, a short results box says what was installed and where the logs are. bookFido starts after you close that box, so the box is never hidden behind it.
 
 The program itself is in the `exec` folder of the installation, and this guide and the other documents are in the `help` folder. `ReadMe.htm` and `License.htm` are at the top.
 
 ## Updating
 
-In the opening dialog, press **F11**. bookFido asks GitHub whether a newer version exists. If one does, Yes is the default: press Enter and the new setup program is downloaded and started. If you already have the newest version, No is the default. If the check fails, for example with no internet connection, a message says so. The dialog's Help (F1) ends with the same check.
+In the opening dialog, press **F11**. bookFido asks GitHub whether a newer version exists. If one does, Yes is the default: press Enter and the new setup program is downloaded and started. If you already have the newest version, No is the default. If the check fails, for example with no internet connection, a message says so. The dialog's Help (F1) ends with the same check. **Shift+F1**, What This Does, says what the control with focus does, and **Control+Slash**, Where Am I, says where you are, what has focus and its keys; both work in every dialog and message, and pressed twice, each shows what it said in a window.
 
 ## Using it
 

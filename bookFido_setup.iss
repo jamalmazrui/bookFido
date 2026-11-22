@@ -211,13 +211,10 @@ var
   sPriorVersion: String;
 
 function priorVersion(): String;
-var
-  sKey, sFound: String;
+//  The kit's homerPriorVersion (22 November 2026), as urlCheck, urlFido, extCheck and BatCon have had since 18 November:
+//  this looked for the AppId with its doubled brace, found nothing, and called every update "Installed".
 begin
-  Result := '';
-  sKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1';
-  if RegQueryStringValue(HKLM, sKey, 'DisplayVersion', sFound) then Result := sFound
-  else if RegQueryStringValue(HKCU, sKey, 'DisplayVersion', sFound) then Result := sFound;
+  Result := homerPriorVersion();
 end;
 
 //  The previous install is read ONCE, before anything is installed: read

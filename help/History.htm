@@ -286,6 +286,11 @@ id="toc-september-2026-built-on-the-homer-development-kit">September
 <h2 id="november-2026-every-box-decided-before-the-last-page">22
 November 2026 – Every box decided before the last page</h2>
 <ul>
+<li><strong>The installer calls an update an update.</strong> It looked
+for the version already installed under its AppId with a doubled brace,
+which Inno writes with one, so its Results box said “Installed” for
+every update. It now asks the kit’s homerPriorVersion, as the other
+launch apps’ installers do.</li>
 <li><strong>The installer checks what is installed before its last
 page,</strong> in alphabetical order, while the progress bar still
 shows, so each box already says Install, Update or Reinstall when the

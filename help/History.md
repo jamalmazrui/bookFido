@@ -8,6 +8,7 @@ author: "Jamal Mazrui"
 
 ## 22 November 2026 -- Every box decided before the last page
 
+- **The installer calls an update an update.** It looked for the version already installed under its AppId with a doubled brace, which Inno writes with one, so its Results box said "Installed" for every update. It now asks the kit's homerPriorVersion, as the other launch apps' installers do.
 - **The installer checks what is installed before its last page,** in alphabetical order, while the progress bar still shows, so each box already says Install, Update or Reinstall when the page appears.
 - **This needs HomerDev 1.273.0.**
 

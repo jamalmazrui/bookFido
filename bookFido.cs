@@ -5180,6 +5180,7 @@ class bookFido
             }
             log("Opening BookTrail: " + sDbPath);
             // Wait up to thirty seconds for DbDo, which may have it open, and hold no file once closed.
+            sDefsTableName = null;
             connectionDb = new SqliteConnection("Data Source=" + sDbPath + ";Default Timeout=30;Pooling=False");
             connectionDb.Open();
             sVersion = "";
@@ -5398,6 +5399,18 @@ class bookFido
         return lRows;
     }
 
+    // THE VALUE LISTS ARE IN defs (27 November 2026). DbDo renamed its value-list table from lookups to defs on 4 November
+    // 2026, so every bookFido run since then logged "no such table: lookups" and went on without BookTrail: no books,
+    // authors or sources were written to it. bookFido now uses defs, or lookups in a BookTrail older than the rename.
+    static string sDefsTableName = null;
+    static string sDefsTable()
+    {
+        if (sDefsTableName != null) return sDefsTableName;
+        sDefsTableName = scalarSql("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = @n", "@n", "defs") != "0" ? "defs" : "lookups";
+        log("BookTrail's value lists are in " + sDefsTableName);
+        return sDefsTableName;
+    }
+
     // BookTrail as bookFido needs it: every field bookFido writes. A field an older BookTrail lacks is added, empty,
     // at the end of the table, through the kit's Schema, which DbDo's own upgrade uses too; its edited trigger is then
     // taught the new field. Nothing is rebuilt, so look, prime, maps and every record stay as DbDo made them.
@@ -5426,7 +5439,7 @@ class bookFido
             foreach (Schema.Column oColumn in lMissing) runSql(Schema.sAddColumnSql("books", oColumn));
             if (scalarSql("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name = @n", "@n", Schema.sEditedTriggerName("books")) != "0")
                 foreach (string sSql in Schema.aEditedTriggerSql("books", Schema.lParseColumns(columnsText()))) runSql(sSql);
-            runSql("INSERT OR IGNORE INTO lookups (tbl, fld, val, ordinal, src) SELECT 'books', 'source', 'Goodreads', (SELECT coalesce(max(ordinal),0)+1 FROM lookups WHERE fld='source'), 'BookTrail' WHERE NOT EXISTS (SELECT 1 FROM lookups WHERE tbl = 'books' AND fld = 'source' AND val = 'Goodreads')");
+            runSql("INSERT OR IGNORE INTO " + sDefsTable() + " (tbl, fld, val, ordinal, src) SELECT 'books', 'source', 'Goodreads', (SELECT coalesce(max(ordinal),0)+1 FROM " + sDefsTable() + " WHERE fld='source'), 'BookTrail' WHERE NOT EXISTS (SELECT 1 FROM " + sDefsTable() + " WHERE tbl = 'books' AND fld = 'source' AND val = 'Goodreads')");
             transactionShape.Commit();
         }
         List<string> lsNames = new List<string>();
@@ -5464,7 +5477,7 @@ class bookFido
             if (aRow[4] != "") dCached["publisher"] = aRow[4];
             dCachedBooks[aRow[0]] = dCached;
         }
-        foreach (string[] aRow in sqlRows("SELECT val, url, descrip FROM lookups WHERE tbl = 'books' AND fld = 'author' AND src = 'bookFido'", 3))
+        foreach (string[] aRow in sqlRows("SELECT val, url, descrip FROM " + sDefsTable() + " WHERE tbl = 'books' AND fld = 'author' AND src = 'bookFido'", 3))
         {
             sName = givenFirst(aRow[0]);
             if (aRow[1] != "") dAuthorWikiUrl[sName] = aRow[1];
@@ -5734,8 +5747,8 @@ class bookFido
             string sVal = surnameFirst(sName);
             string sBio = dAuthorWikiBio.ContainsKey(sName) && dAuthorWikiBio[sName] != "" ? dAuthorWikiBio[sName] : (dAuthorOlBio.ContainsKey(sName) ? dAuthorOlBio[sName] : "");
             string sUrl = dAuthorWikiUrl.ContainsKey(sName) ? dAuthorWikiUrl[sName] : "";
-            runSqlWith("INSERT OR IGNORE INTO lookups (tbl, fld, val, src) VALUES ('books', 'author', @v, 'bookFido')", new string[] { "@v", sVal });
-            runSqlWith("UPDATE lookups SET descrip = CASE WHEN coalesce(descrip,'') = '' AND @d <> '' THEN @d ELSE descrip END, url = CASE WHEN coalesce(url,'') = '' AND @u <> '' THEN @u ELSE url END WHERE tbl = 'books' AND fld = 'author' AND val = @v AND src = 'bookFido'",
+            runSqlWith("INSERT OR IGNORE INTO " + sDefsTable() + " (tbl, fld, val, src) VALUES ('books', 'author', @v, 'bookFido')", new string[] { "@v", sVal });
+            runSqlWith("UPDATE " + sDefsTable() + " SET descrip = CASE WHEN coalesce(descrip,'') = '' AND @d <> '' THEN @d ELSE descrip END, url = CASE WHEN coalesce(url,'') = '' AND @u <> '' THEN @u ELSE url END WHERE tbl = 'books' AND fld = 'author' AND val = @v AND src = 'bookFido'",
                 new string[] { "@d", sBio, "@u", sUrl, "@v", sVal });
         }
     }

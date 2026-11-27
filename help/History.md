@@ -6,6 +6,10 @@ author: "Jamal Mazrui"
 # bookFido History
 
 
+## 27 November 2026 -- BookTrail written again
+
+- **bookFido writes BookTrail again.** DbDo renamed the table that holds BookTrail's pick lists from lookups to defs on 4 November, and bookFido still asked for lookups. So every run since then said the database could not be opened and went on without it: the catalog was made, but no books, authors or sources reached DbDo. bookFido now uses defs, or lookups in a BookTrail older than the rename.
+
 ## 22 November 2026 -- Every box decided before the last page
 
 - **The installer calls an update an update.** It looked for the version already installed under its AppId with a doubled brace, which Inno writes with one, so its Results box said "Installed" for every update. It now asks the kit's homerPriorVersion, as the other launch apps' installers do.
